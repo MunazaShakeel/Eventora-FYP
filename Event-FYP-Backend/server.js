@@ -1,0 +1,101 @@
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const morgan = require('morgan');
+const cors = require('cors');
+
+// 🔥 ADD THESE TWO
+const Admin = require('./models/Admin');
+const bcrypt = require('bcryptjs');
+
+// Import Routes
+const authRoutes = require('./routes/auth.routes');
+const studentRoutes = require('./routes/student.routes');
+const organizerRoutes = require('./routes/organizer.routes');
+const adminRoutes = require('./routes/admin.routes');
+const eventRoutes = require('./routes/event.routes');
+const registrationRoutes = require('./routes/registration.routes');
+const taskRoutes = require('./routes/task.routes');
+const certificateRoutes = require('./routes/certificate.routes');
+const feedbackRoutes = require('./routes/feedback.routes');
+const galleryRoutes = require('./routes/gallery.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
+const organizerDashboardRoutes = require('./routes/organizerDashboard.routes');
+const studentDashboardRoutes = require('./routes/studentDashboard.routes');
+const volunteerDashboardRoutes = require('./routes/volunteerDashboard.routes');
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+app.use(morgan('dev'));
+const path = require('path');
+app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/organizers', organizerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/registrations', registrationRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/certificates', certificateRoutes);
+app.use('/api/feedbacks', feedbackRoutes);
+app.use('/api/gallery', galleryRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/organizer-dashboard', organizerDashboardRoutes);
+app.use('/api/student-dashboard', studentDashboardRoutes);
+app.use('/api/volunteer-dashboard', volunteerDashboardRoutes);
+
+app.use((err, req, res, next) => {
+    if (!err) return next();
+    if (err.name === 'MulterError') {
+        return res.status(400).json({ message: err.message });
+    }
+    if (err.message && err.message.includes('Only JPG, PNG, WEBP images are allowed')) {
+        return res.status(400).json({ message: err.message });
+    }
+    return res.status(500).json({ message: err.message || 'Internal server error' });
+});
+
+app.get('/', (req, res) => {
+    res.send('Event Management Portal Backend is running 🚀');
+});
+
+const PORT = process.env.PORT || 5000;
+
+mongoose.connect(process.env.MONGO_URI, {
+    dbName: 'event_portal'
+})
+.then(async () => {
+
+    console.log('✅ MongoDB connected');
+
+    // 🔥 AUTO CREATE DEFAULT ADMIN
+    const existingAdmin = await Admin.findOne({ email: 'admin@college.com' });
+
+    if (!existingAdmin) {
+
+        const hashedPassword = await bcrypt.hash('ADmin786', 10);
+
+        await Admin.create({
+            
+            email: 'admin@college.com',
+            password: hashedPassword
+        });
+
+        console.log('Default Admin Created');
+    } else {
+        console.log(' Admin Already Exists');
+    }
+
+    app.listen(PORT, () =>
+        console.log(` Server running on port ${PORT}`)
+    );
+
+})
+.catch((err) => {
+    console.error('❌ MongoDB connection error:', err.message);
+});
