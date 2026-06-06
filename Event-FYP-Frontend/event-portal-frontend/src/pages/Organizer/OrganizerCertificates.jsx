@@ -48,6 +48,7 @@ const OrganizerCertificates = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteModal, setDeleteModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -164,11 +165,43 @@ const OrganizerCertificates = () => {
     }
   };
 
+  // ✅ Fixed Download Certificate Function
+  const handleDownloadCertificate = async (certId, studentName) => {
+    if (!token) {
+      showToast("Please login again", "error");
+      return;
+    }
+    
+    setDownloadingId(certId);
+    try {
+      const response = await axios.get(`${API}/api/certificates/download/${certId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `certificate_${studentName?.replace(/\s/g, '_') || 'certificate'}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      showToast("Certificate downloaded successfully!", "success");
+    } catch (err) {
+      console.error("Download error:", err);
+      showToast(err.response?.data?.message || "Failed to download certificate", "error");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const handleDeleteCertificate = async () => {
     if (!deleteModal) return;
     try {
       setDeleting(true);
-      // Add delete API endpoint if needed
       await axios.delete(`${API}/api/certificates/${deleteModal}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -433,7 +466,7 @@ const OrganizerCertificates = () => {
                 )}
               </div>
 
-              {/* Issued Certificates Section */}
+              {/* Issued Certificates Section with Download Button */}
               {issuedCerts.length > 0 && (
                 <div className="bg-white rounded-3xl overflow-hidden"
                   style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.09)", border: "1px solid rgba(155,89,182,0.08)" }}>
@@ -472,13 +505,35 @@ const OrganizerCertificates = () => {
                             </div>
                           </div>
                           
-                          <button
-                            onClick={() => setDeleteModal(cert._id)}
-                            className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition-all"
-                          >
-                            <span className="material-symbols-outlined text-sm">delete</span>
-                            Delete
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {/* ✅ Download Button */}
+                            <button
+                              onClick={() => handleDownloadCertificate(cert._id, cert.student_id?.name)}
+                              disabled={downloadingId === cert._id}
+                              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 hover:text-purple-700 transition-all"
+                            >
+                              {downloadingId === cert._id ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                                  Loading...
+                                </>
+                              ) : (
+                                <>
+                                  <span className="material-symbols-outlined text-sm">download</span>
+                                  Download
+                                </>
+                              )}
+                            </button>
+                            
+                            {/* Delete Button */}
+                            <button
+                              onClick={() => setDeleteModal(cert._id)}
+                              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition-all"
+                            >
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                              Delete
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}

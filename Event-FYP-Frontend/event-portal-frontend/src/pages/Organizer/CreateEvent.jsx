@@ -3,11 +3,14 @@ import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import OrganizerSidebar from "../../components/OrganizerSidebar";
 import { useAuth } from "../../context/AuthContext";
+import { Calendar, Clock, MapPin, Edit2, PlusCircle, Image as ImageIcon, X, AlertCircle, CheckCircle } from "lucide-react";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const CreateEvent = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { token } = useAuth();  // ✅ yahan hona chahiye — component ke top pe
+  const { token } = useAuth();
 
   const editEvent = location.state?.event || null;
   const isEditMode = !!editEvent;
@@ -62,7 +65,6 @@ const CreateEvent = () => {
 
     setLoading(true);
     try {
-   
       const data = new FormData();
 
       Object.keys(formData).forEach((key) => {
@@ -72,7 +74,7 @@ const CreateEvent = () => {
       if (image) data.append("image", image);
 
       if (isEditMode) {
-       await axios.put(`${API_URL}/events/${editEvent._id}`, data, {
+        await axios.put(`${API_URL}/events/${editEvent._id}`, data, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "multipart/form-data",
@@ -80,7 +82,7 @@ const CreateEvent = () => {
         });
         setSuccess("Event updated successfully!");
       } else {
-          await axios.post(`${API_URL}/events`, data, {
+        await axios.post(`${API_URL}/events`, data, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "multipart/form-data",
@@ -99,31 +101,56 @@ const CreateEvent = () => {
   };
 
   return (
-     <div className="flex min-h-screen bg-[#f8f3fd] font-sans text-[#1A1A1A]">
-    <OrganizerSidebar />
-    <main className="md:ml-64 flex-1 pb-20 px-6 md:px-10 pt-10 flex justify-center">
-      <div className="w-full max-w-4xl">
+    <div className="flex min-h-screen bg-linear-to-br from-purple-50 via-white to-gray-50 font-sans text-[#1A1A1A]">
+      <OrganizerSidebar />
+      <main className="md:ml-64 flex-1 pb-20 px-6 md:px-10 pt-10 flex justify-center">
+        <div className="w-full max-w-4xl">
 
-        {error && <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl text-red-600 font-semibold text-sm">{error}</div>}
-        {success && <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-xl text-green-600 font-semibold text-sm">{success}</div>}
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex items-center gap-3">
+              <AlertCircle className="text-red-500" size={20} />
+              <p className="text-red-600 font-medium text-sm">{error}</p>
+            </div>
+          )}
+          
+          {/* Success Message */}
+          {success && (
+            <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-xl flex items-center gap-3">
+              <CheckCircle className="text-green-500" size={20} />
+              <p className="text-green-600 font-medium text-sm">{success}</p>
+            </div>
+          )}
 
-          {/* Header */}
-          <div className="mb-10 text-center">
-            <h1 className="text-5xl font-extrabold mb-3">
-              {isEditMode ? "Edit" : "Create New"} <span className="text-[#8b4fa2]">Event</span>
-            </h1>
-            <p className="text-gray-600 text-lg">
-              {isEditMode ? "Update the details of your event" : "Fill in the details below to create a campus event"}
-            </p>
-          </div>
-
-          {/* Card */}
+          {/* Yellow Border Card */}
           <div className="bg-white border-8 border-yellow-400 rounded-2xl shadow-lg overflow-hidden">
             <form onSubmit={handleSubmit} className="p-8 md:p-12 space-y-10">
 
+              {/* Header with Lucide Icons */}
+              <div className="mb-10 text-center">
+                <div className="inline-flex items-center justify-center p-3 bg-purple-100 rounded-full mb-5">
+                  {isEditMode ? (
+                    <Edit2 className="w-8 h-8 text-[#8b4fa2]" />
+                  ) : (
+                    <PlusCircle className="w-8 h-8 text-[#8b4fa2]" />
+                  )}
+                </div>
+                <h1 className="text-4xl md:text-5xl font-extrabold mb-3">
+                  {isEditMode ? "Edit" : "Create New"} <span className="text-[#8b4fa2]">Event</span>
+                </h1>
+                <p className="text-gray-600 text-base md:text-lg">
+                  {isEditMode 
+                    ? "Update the details of your event" 
+                    : "Fill in the details below to create a campus event"}
+                </p>
+              </div>
+
               {/* Image Upload */}
               <div className="space-y-3">
-                <label className="font-bold text-lg text-gray-700">Event Cover Image <span className="text-gray-400 font-normal text-sm">(optional)</span></label>
+                <label className="flex items-center gap-2 font-bold text-lg text-gray-700">
+                  <ImageIcon size={20} className="text-[#8b4fa2]" />
+                  Event Cover Image <span className="text-gray-400 font-normal text-sm">(optional)</span>
+                </label>
                 <div
                   className="relative border-2 border-dashed border-[#8b4fa2] rounded-2xl overflow-hidden bg-white flex flex-col items-center justify-center cursor-pointer hover:bg-purple-50 transition"
                   style={{ aspectRatio: "16/7" }}
@@ -134,9 +161,9 @@ const CreateEvent = () => {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setImage(null); setImagePreview(null); }}
-                        className="absolute top-3 right-3 bg-red-500 text-white text-xs px-3 py-1 rounded-full font-bold z-10 hover:bg-red-600"
+                        className="absolute top-3 right-3 bg-red-500 text-white text-xs px-3 py-1 rounded-full font-bold z-10 hover:bg-red-600 flex items-center gap-1"
                       >
-                        Remove
+                        <X size={12} /> Remove
                       </button>
                     </>
                   ) : (
@@ -154,7 +181,10 @@ const CreateEvent = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                 <div className="md:col-span-2">
-                  <label className="font-bold text-gray-700">Event Title</label>
+                  <label className="flex items-center gap-2 font-bold text-gray-700">
+                    <Calendar size={18} className="text-[#8b4fa2]" />
+                    Event Title
+                  </label>
                   <input
                     type="text" name="title" onChange={handleChange} value={formData.title}
                     placeholder="e.g. Annual Science Fair 2025"
@@ -173,7 +203,10 @@ const CreateEvent = () => {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="font-bold text-gray-700">Venue</label>
+                  <label className="flex items-center gap-2 font-bold text-gray-700">
+                    <MapPin size={18} className="text-[#8b4fa2]" />
+                    Venue
+                  </label>
                   <input
                     type="text" name="venue" onChange={handleChange} value={formData.venue}
                     placeholder="e.g. Main Auditorium, Block B"
@@ -183,7 +216,10 @@ const CreateEvent = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-gray-700">Start Date</label>
+                  <label className="flex items-center gap-2 font-bold text-gray-700">
+                    <Calendar size={16} className="text-[#8b4fa2]" />
+                    Start Date
+                  </label>
                   <input
                     type="date" name="start_date" onChange={handleChange} value={formData.start_date}
                     min={new Date().toISOString().split("T")[0]}
@@ -193,7 +229,10 @@ const CreateEvent = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-gray-700">Start Time</label>
+                  <label className="flex items-center gap-2 font-bold text-gray-700">
+                    <Clock size={16} className="text-[#8b4fa2]" />
+                    Start Time
+                  </label>
                   <input
                     type="time" name="start_time" onChange={handleChange} value={formData.start_time}
                     className="w-full mt-2 px-4 py-3 rounded-xl border-2 border-gray-300 bg-white focus:ring-2 focus:ring-[#8b4fa2] outline-none transition"
@@ -202,7 +241,10 @@ const CreateEvent = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-gray-700">End Date</label>
+                  <label className="flex items-center gap-2 font-bold text-gray-700">
+                    <Calendar size={16} className="text-[#8b4fa2]" />
+                    End Date
+                  </label>
                   <input
                     type="date" name="end_date" onChange={handleChange} value={formData.end_date}
                     min={formData.start_date || new Date().toISOString().split("T")[0]}
@@ -212,7 +254,10 @@ const CreateEvent = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-gray-700">End Time</label>
+                  <label className="flex items-center gap-2 font-bold text-gray-700">
+                    <Clock size={16} className="text-[#8b4fa2]" />
+                    End Time
+                  </label>
                   <input
                     type="time" name="end_time" onChange={handleChange} value={formData.end_time}
                     className="w-full mt-2 px-4 py-3 rounded-xl border-2 border-gray-300 bg-white focus:ring-2 focus:ring-[#8b4fa2] outline-none transition"
@@ -234,7 +279,7 @@ const CreateEvent = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-10 py-3 rounded-xl text-white font-bold shadow-lg bg-[#8b4fa2] hover:bg-[#724286] transition disabled:opacity-60"
+                  className="px-10 py-3 rounded-xl text-white font-bold shadow-lg bg-linear-to-r from-[#8b4fa2] to-[#7a3d91] hover:shadow-xl transition-all transform hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100"
                 >
                   {loading ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Event" : "Submit for Approval")}
                 </button>

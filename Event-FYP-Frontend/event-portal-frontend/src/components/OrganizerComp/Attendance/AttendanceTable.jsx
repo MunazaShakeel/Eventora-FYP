@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-
+import { Calendar, Clock, MapPin, Edit2, PlusCircle, Image as ImageIcon, Download, X, AlertCircle, CheckCircle } from "lucide-react";
 const colors = ["#8b4fa2", "#4ECDC4", "#FF6B6B", "#FFE66D", "#9B59B6"];
 const getAvatar = (name, i) => ({
   bg: colors[i % colors.length],
@@ -45,15 +45,17 @@ const AttendanceTable = ({ registrations, presentCount, absentCount, onDownload 
           ))}
         </div>
 
-        <button onClick={onDownload}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
-          style={{
-            background: "linear-gradient(135deg, #8b4fa2, #4ECDC4)",
-            boxShadow: "0 4px 15px rgba(139,79,162,0.35)"
-          }}>
-          <span className="material-symbols-outlined text-[18px]">download</span>
-          Download CSV
-        </button>
+        <button 
+  onClick={onDownload}
+  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white 
+             bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] 
+             shadow-[0_4px_15px_rgba(139,79,162,0.35)] 
+             hover:opacity-90 hover:scale-[1.02] 
+             transition-all duration-300"
+>
+  <Download size={16} />  {/* Lucide icon instead of material */}
+  Download CSV
+</button>
       </div>
 
       {/* Table */}

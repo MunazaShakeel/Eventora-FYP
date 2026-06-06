@@ -15,6 +15,9 @@ router.get('/my-events', authMiddleware, roleMiddleware('Organizer'), certificat
 // Get student's certificates
 router.get('/my', authMiddleware, roleMiddleware('Student', 'Volunteer'), certificateController.getCertificatesByStudent);
 
+// ✅ DOWNLOAD CERTIFICATE (NEW)
+router.get('/download/:id', authMiddleware, certificateController.downloadCertificate);
+
 // Verify certificate (public)
 router.get('/verify/:certificate_id', certificateController.verifyCertificate);
 
