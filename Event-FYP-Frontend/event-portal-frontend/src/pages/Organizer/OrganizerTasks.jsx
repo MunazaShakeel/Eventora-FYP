@@ -162,7 +162,7 @@ const OrganizerTasks = () => {
 
   if (loadingEvents) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-purple-50 via-white to-gray-50">
+      <div className="flex min-h-screen bg-linear-to-br from-purple-50 via-white to-gray-50">
         <OrganizerSidebar />
         <div className="flex-1 md:ml-64 flex items-center justify-center">
           <div className="text-center">
@@ -175,7 +175,7 @@ const OrganizerTasks = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-purple-50 via-white to-gray-50">
+    <div className="flex min-h-screen bg-linear-to-br from-purple-50 via-white to-gray-50">
       <OrganizerSidebar />
 
       <main className="flex-1 md:ml-64 p-6 lg:p-8 pb-20">
@@ -187,7 +187,7 @@ const OrganizerTasks = () => {
               
               {/* Header */}
               <div className="mb-8 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-[#8b4fa2] to-[#4ECDC4] rounded-2xl shadow-lg mb-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-linear-to-br from-[#8b4fa2] to-[#4ECDC4] rounded-2xl shadow-lg mb-4">
                   <ListTodo size={32} className="text-white" />
                 </div>
                 <h1 className="text-3xl lg:text-5xl font-extrabold">
@@ -200,17 +200,17 @@ const OrganizerTasks = () => {
 
               {/* Stats Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 text-center">
+                <div className="bg-linear-to-r from-purple-50 to-purple-100 rounded-xl p-4 text-center">
                   <Users size={24} className="text-[#8b4fa2] mx-auto mb-2" />
                   <p className="text-2xl font-bold text-gray-800">{volunteers.length}</p>
                   <p className="text-xs text-gray-500">Total Volunteers</p>
                 </div>
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 text-center">
+                <div className="bg-linear-to-r from-blue-50 to-blue-100 rounded-xl p-4 text-center">
                   <ListTodo size={24} className="text-blue-500 mx-auto mb-2" />
                   <p className="text-2xl font-bold text-gray-800">{tasks.length}</p>
                   <p className="text-xs text-gray-500">Total Tasks</p>
                 </div>
-                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 text-center">
+                <div className="bg-linear-to-r from-green-50 to-green-100 rounded-xl p-4 text-center">
                   <CheckCircle size={24} className="text-green-500 mx-auto mb-2" />
                   <p className="text-2xl font-bold text-gray-800">
                     {tasks.filter(t => t.status === "Completed").length}
@@ -246,7 +246,7 @@ const OrganizerTasks = () => {
               ) : (
                 <>
                   {/* Event Selection Card with Styled Show/Hide Button */}
-                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-8">
+                  <div className="bg-linear-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-8">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div className="flex-1">
                         <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
@@ -279,8 +279,8 @@ const OrganizerTasks = () => {
                         onClick={() => setShowVolunteerTable(!showVolunteerTable)}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 shadow-md hover:shadow-lg ${
                           showVolunteerTable
-                            ? "bg-gradient-to-r from-red-500 to-orange-500 text-white hover:opacity-90 hover:scale-[1.02]"
-                            : "bg-gradient-to-r from-[#8b4fa2] to-[#4ECDC4] text-white hover:opacity-90 hover:scale-[1.02]"
+                            ? "bg-linear-to-r from-red-500 to-orange-500 text-white hover:opacity-90 hover:scale-[1.02]"
+                            : "bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] text-white hover:opacity-90 hover:scale-[1.02]"
                         }`}
                       >
                         {showVolunteerTable ? (
@@ -321,7 +321,7 @@ const OrganizerTasks = () => {
                     
                     {/* Create Task Form */}
                     <div className="bg-white rounded-2xl border-2 border-gray-100 shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-[#8b4fa2] to-[#7a3d91] px-6 py-4">
+                      <div className="bg-linear-to-r from-[#8b4fa2] to-[#7a3d91] px-6 py-4">
                         <h2 className="text-xl font-bold text-white flex items-center gap-2">
                           <Plus size={20} />
                           Create New Task
@@ -384,7 +384,7 @@ const OrganizerTasks = () => {
                         <button
                           type="submit"
                           disabled={submitting || volunteers.length === 0}
-                          className="w-full py-3 rounded-xl bg-gradient-to-r from-[#8b4fa2] to-[#7a3d91] text-white font-bold hover:shadow-lg transition-all transform hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                          className="w-full py-3 rounded-xl bg-linear-to-r from-[#8b4fa2] to-[#7a3d91] text-white font-bold hover:shadow-lg transition-all transform hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100 flex items-center justify-center gap-2"
                         >
                           {submitting ? (
                             <>
@@ -403,7 +403,7 @@ const OrganizerTasks = () => {
 
                     {/* Tasks List */}
                     <div className="bg-white rounded-2xl border-2 border-gray-100 shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-[#4ECDC4] to-[#3ba89f] px-6 py-4">
+                      <div className="bg-linear-to-r from-[#4ECDC4] to-[#3ba89f] px-6 py-4">
                         <div className="flex items-center justify-between">
                           <h2 className="text-xl font-bold text-white flex items-center gap-2">
                             <CheckCircle size={20} />
