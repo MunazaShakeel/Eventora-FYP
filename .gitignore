@@ -1,0 +1,21 @@
+# Backend node_modules
+Event-FYP-Backend/node_modules/
+Event-FYP-Backend/uploads/
+Event-FYP-Backend/package-lock.json
+
+# Frontend node_modules
+Event-FYP-Frontend/event-portal-frontend/node_modules/
+Event-FYP-Frontend/event-portal-frontend/dist/
+Event-FYP-Frontend/event-portal-frontend/package-lock.json
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
