@@ -4,12 +4,10 @@ const organizerController = require('../controllers/organizer.controller');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth.middleware');
 
 /* ================= PUBLIC ROUTES ================= */
-
 router.post('/register', organizerController.registerOrganizer);
 router.post('/login', organizerController.loginOrganizer);
 
 /* ============== PROTECTED ROUTES ================= */
-
 router.use(authMiddleware, roleMiddleware('Organizer'));
 
 // Organizer profile

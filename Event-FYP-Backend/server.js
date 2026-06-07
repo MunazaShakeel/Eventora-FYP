@@ -4,9 +4,13 @@ const mongoose = require('mongoose');
 const morgan = require('morgan');
 const cors = require('cors');
 
-// 🔥 ADD THESE TWO
 const Admin = require('./models/Admin');
 const bcrypt = require('bcryptjs');
+
+// 🆕 Notification imports
+const http = require('http');
+const { initSocket } = require('./utils/socket');
+const notificationUtils = require('./utils/notification');
 
 // Import Routes
 const authRoutes = require('./routes/auth.routes');
@@ -23,6 +27,9 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const organizerDashboardRoutes = require('./routes/organizerDashboard.routes');
 const studentDashboardRoutes = require('./routes/studentDashboard.routes');
 const volunteerDashboardRoutes = require('./routes/volunteerDashboard.routes');
+
+// 🆕 Import auth middleware
+const { authMiddleware, allowRoles } = require('./middleware/auth.middleware');
 
 const app = express();
 
@@ -49,6 +56,52 @@ app.use('/api/organizer-dashboard', organizerDashboardRoutes);
 app.use('/api/student-dashboard', studentDashboardRoutes);
 app.use('/api/volunteer-dashboard', volunteerDashboardRoutes);
 
+// 🆕 NOTIFICATION ROUTES (Protected with authMiddleware)
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+    try {
+        const result = await notificationUtils.getUserNotifications(req.user.id);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.put('/api/notifications/:id/read', authMiddleware, async (req, res) => {
+    try {
+        const result = await notificationUtils.markAsRead(req.params.id, req.user.id);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.put('/api/notifications/read-all', authMiddleware, async (req, res) => {
+    try {
+        const result = await notificationUtils.markAllAsRead(req.user.id);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.delete('/api/notifications/:id', authMiddleware, async (req, res) => {
+    try {
+        const result = await notificationUtils.deleteNotification(req.params.id, req.user.id);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.delete('/api/notifications', authMiddleware, async (req, res) => {
+    try {
+        const result = await notificationUtils.deleteAllNotifications(req.user.id);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 app.use((err, req, res, next) => {
     if (!err) return next();
     if (err.name === 'MulterError') {
@@ -65,36 +118,32 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+const server = http.createServer(app);
 
 mongoose.connect(process.env.MONGO_URI, {
     dbName: 'event_portal'
 })
 .then(async () => {
-
     console.log('✅ MongoDB connected');
 
-    // 🔥 AUTO CREATE DEFAULT ADMIN
     const existingAdmin = await Admin.findOne({ email: 'admin@college.com' });
-
     if (!existingAdmin) {
-
         const hashedPassword = await bcrypt.hash('ADmin786', 10);
-
         await Admin.create({
-            
             email: 'admin@college.com',
             password: hashedPassword
         });
-
-        console.log('Default Admin Created');
+        console.log('✅ Default Admin Created');
     } else {
-        console.log(' Admin Already Exists');
+        console.log('ℹ️ Admin Already Exists');
     }
 
-    app.listen(PORT, () =>
-        console.log(` Server running on port ${PORT}`)
-    );
+    // Initialize socket
+    initSocket(server);
 
+    server.listen(PORT, () =>
+        console.log(`🚀 Server running on port ${PORT}`)
+    );
 })
 .catch((err) => {
     console.error('❌ MongoDB connection error:', err.message);
