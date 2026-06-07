@@ -58,7 +58,7 @@ const NotificationBell = () => {
     toast.className = 'fixed bottom-4 right-4 bg-white rounded-lg shadow-2xl p-4 max-w-sm z-50 animate-slide-up';
     toast.innerHTML = `
       <div class="flex items-start gap-3">
-        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-[#8b4fa2] to-[#4ECDC4] flex items-center justify-center">
+        <div class="w-10 h-10 rounded-full bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] flex items-center justify-center">
           <span class="text-white text-lg">🔔</span>
         </div>
         <div class="flex-1">
@@ -174,7 +174,7 @@ const NotificationBell = () => {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-teal-50">
+          <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-linear-to-r from-purple-50 to-teal-50">
             <h3 className="font-bold text-gray-800">Notifications</h3>
             {notifications.length > 0 && (
               <button
