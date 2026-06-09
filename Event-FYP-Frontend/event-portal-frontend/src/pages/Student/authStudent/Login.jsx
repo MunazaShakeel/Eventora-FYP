@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../../../components/Navbar";
 import { useAuth } from "../../../context/AuthContext";  // ✅ ADD
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();  
@@ -29,7 +31,7 @@ const Login = () => {
       setError("");
 
       const res = await axios.post(
-        "http://localhost:5000/api/students/login",
+        `${API_URL}/students/login`,
         formData
       );
 

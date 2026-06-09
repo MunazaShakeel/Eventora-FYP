@@ -5,6 +5,9 @@ import axios from "axios";
 import Navbar from "../../../components/Navbar";
 import campusBanner from "../../../assets/image1.jpg";
 
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 const Register = () => {
   const navigate = useNavigate();
 
@@ -59,7 +62,7 @@ const Register = () => {
       };
 
       const res = await axios.post(
-        "http://localhost:5000/api/students/register",
+        `${API_URL}/students/register`,
         payload
       );
 

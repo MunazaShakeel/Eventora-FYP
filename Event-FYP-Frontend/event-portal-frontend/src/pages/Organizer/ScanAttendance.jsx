@@ -5,7 +5,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
-const API = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 /* ─────────────────────────────────────────
    RESULT CONFIG
@@ -56,7 +56,7 @@ const ScanAttendance = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const res = await axios.get(`${API}/api/organizers/my-events`, {
+        const res = await axios.get(`${API_URL}/api/organizers/my-events`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setEvents(res.data.events || []);
@@ -126,14 +126,13 @@ const ScanAttendance = () => {
 
     try {
       const response = await axios.put(
-        `${API}/api/registrations/attendance/qr`,
+        `${API_URL}/api/registrations/attendance/qr`,
         { qrData },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
       const { registration, message } = response.data;
       
-      // Extract student and event info - even for new scans
       let studentName = "Unknown Student";
       let studentEmail = "";
       let eventTitle = "Unknown Event";
@@ -189,14 +188,12 @@ const ScanAttendance = () => {
       const errorMsg = err.response?.data?.message || "Failed to mark attendance.";
       const isAlready = errorMsg.toLowerCase().includes("already");
       
-      // IMPORTANT FIX: Try to extract student/event info from error response
       let studentName = null;
       let studentEmail = null;
       let eventTitle = null;
       let eventDate = null;
       let eventVenue = null;
       
-      // Check if error response contains registration data
       if (err.response?.data?.registration) {
         const reg = err.response.data.registration;
         if (reg.student_id) {
@@ -212,7 +209,6 @@ const ScanAttendance = () => {
         }
       }
       
-      // Also check if error response has nested registration in data
       if (!studentName && err.response?.data?.data?.registration) {
         const reg = err.response.data.data.registration;
         if (reg.student_id) {
@@ -269,44 +265,59 @@ const ScanAttendance = () => {
 
       <main className="flex-1 md:ml-64 pb-24 md:pb-8">
 
-        {/* ── HEADER BANNER ── */}
-        <div className="relative overflow-hidden px-8 pt-10 pb-8"
-          style={{ background: "linear-gradient(135deg,#9B59B6 0%,#6d3483 55%,#4ECDC4 100%)" }}>
-          <div className="absolute -top-10 -right-10 w-52 h-52 rounded-full opacity-10" style={{ background: "#FFE66D" }} />
-          <div className="absolute bottom-0 left-1/4 w-28 h-28 rounded-full opacity-10" style={{ background: "#FF6B6B" }} />
-          <div className="relative z-10">
-            <p className="text-purple-200 text-xs font-black uppercase tracking-widest mb-1">Organizer Portal</p>
-            <h1 className="text-3xl font-black text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-              QR Attendance Scanner
-            </h1>
-            <p className="text-purple-200 text-sm mt-1">Scan student QR codes to mark attendance instantly</p>
+        {/* ── HEADER BANNER (Updated like Feedback page) ── */}
+        <div
+         className="relative overflow-hidden px-8 pt-10 pb-8"
+          style={{ background: "linear-gradient(135deg,#9B59B6 0%,#6d3483 100%)" }}
+        >
+        
+          <div className="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <p className="inline-block px-4 py-1 mb-4 rounded-full bg-[#FFE66D] text-[#1A1A1A] text-xs font-black tracking-widest uppercase">
+                Organizer Portal
+              </p>
+              <h1 className="text-3xl md:text-4xl font-black text-white">
+                QR Attendance Scanner
+              </h1>
+              <p className="text-purple-100 text-sm mt-1">Scan student QR codes to mark attendance instantly</p>
+            </div>
+            
+            <div className="flex gap-3 flex-wrap">
+              {[
+                { icon: "qr_code_scanner", label: "Scanner", value: scanning ? "Active" : "Standby" },
+                { icon: "event", label: "Selected Event", value: events.find(e => e._id === selectedEvent)?.title?.slice(0, 20) || "None" },
+              ].map((s) => (
+                <div key={s.label} className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105 bg-white/20 backdrop-blur-sm">
+                  <span className="material-symbols-outlined text-white text-sm group-hover:animate-pulse">
+                    {s.icon}
+                  </span>
+                  <span className="text-lg font-black text-white">{s.value === "Active" ? "🔴" : s.value === "Standby" ? "⏹️" : s.value}</span>
+                  <span className="text-purple-200 text-xs font-semibold">{s.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="px-6 pt-6 max-w-6xl mx-auto">
+        <div className="px-4 sm:px-6 pt-6 max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             {/* ══════════════════════════════
                 LEFT — SCANNER CARD
             ══════════════════════════════ */}
             <div className="space-y-5">
-              <div className="bg-white rounded-3xl overflow-hidden"
-                style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.1)", border: "1px solid rgba(155,89,182,0.08)" }}>
+              <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100">
 
                 {/* Card Header */}
-                <div className="px-6 pt-6 pb-4 border-b border-gray-50">
+                <div className="px-6 pt-6 pb-4 border-b border-gray-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
-                      style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)" }}>
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4]">
                       <span className="material-symbols-outlined text-[20px] text-white">qr_code_scanner</span>
                     </div>
                     <div>
-                      <h2 className="font-black text-gray-800 text-sm" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                        Scanner
-                      </h2>
+                      <h2 className="font-black text-gray-800 text-sm">Scanner</h2>
                       <p className="text-xs text-gray-400">Point camera at student's QR code</p>
                     </div>
-                    {/* Live indicator */}
                     {scanning && (
                       <div className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50">
                         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -323,16 +334,16 @@ const ScanAttendance = () => {
                       Select Event
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-[#9B59B6]">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-[#8b4fa2]">
                         event
                       </span>
                       <select
                         value={selectedEvent}
                         onChange={(e) => setSelectedEvent(e.target.value)}
                         disabled={scanning}
-                        className="w-full pl-10 pr-4 py-3 rounded-2xl border text-sm font-semibold text-gray-700 bg-white appearance-none focus:outline-none transition"
-                        style={{ borderColor: selectedEvent ? "#9B59B6" : "#e5e7eb",
-                          boxShadow: selectedEvent ? "0 0 0 3px rgba(155,89,182,0.1)" : "none" }}
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border text-sm font-semibold text-gray-700 bg-white appearance-none focus:outline-none transition"
+                        style={{ borderColor: selectedEvent ? "#8b4fa2" : "#e5e7eb",
+                          boxShadow: selectedEvent ? "0 0 0 3px rgba(139,79,162,0.1)" : "none" }}
                       >
                         <option value="">
                           {loadingEvents ? "Loading events..." : "-- Choose an event --"}
@@ -346,30 +357,28 @@ const ScanAttendance = () => {
 
                   {/* Camera Error */}
                   {cameraError && (
-                    <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-red-50 border border-red-100">
+                    <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-100">
                       <span className="material-symbols-outlined text-[16px] text-red-400">error</span>
                       <p className="text-xs font-semibold text-red-600">{cameraError}</p>
                     </div>
                   )}
 
                   {/* QR Viewfinder */}
-                  <div className="relative rounded-2xl overflow-hidden bg-gray-900"
-                    style={{ aspectRatio: "1", border: "2px solid rgba(155,89,182,0.2)" }}>
+                  <div className="relative rounded-xl overflow-hidden bg-gray-900"
+                    style={{ aspectRatio: "1", border: "2px solid rgba(139,79,162,0.2)" }}>
                     <div id="qr-reader" className="w-full h-full" />
 
                     {/* Overlay when not scanning */}
                     {!scanning && !loading && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center"
                         style={{ background: "linear-gradient(135deg,rgba(26,26,26,0.95),rgba(45,27,61,0.95))" }}>
-                        <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-4"
-                          style={{ background: "rgba(155,89,182,0.2)", border: "1px solid rgba(155,89,182,0.3)" }}>
-                          <span className="material-symbols-outlined text-[40px]" style={{ color: "#9B59B6", fontVariationSettings: "'FILL' 1" }}>
+                        <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4"
+                          style={{ background: "rgba(139,79,162,0.2)", border: "1px solid rgba(139,79,162,0.3)" }}>
+                          <span className="material-symbols-outlined text-[40px]" style={{ color: "#8b4fa2", fontVariationSettings: "'FILL' 1" }}>
                             qr_code_2
                           </span>
                         </div>
-                        <p className="text-white font-black text-sm" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                          Camera Inactive
-                        </p>
+                        <p className="text-white font-black text-sm">Camera Inactive</p>
                         <p className="text-gray-400 text-xs mt-1">Select event and press Start</p>
 
                         {/* Corner decorations */}
@@ -377,7 +386,7 @@ const ScanAttendance = () => {
                           ["bottom-4 left-4","border-b-2 border-l-2"],["bottom-4 right-4","border-b-2 border-r-2"]
                         ].map(([pos, border], i) => (
                           <div key={i} className={`absolute ${pos} w-8 h-8 ${border} rounded-sm`}
-                            style={{ borderColor: "#9B59B6" }} />
+                            style={{ borderColor: "#8b4fa2" }} />
                         ))}
                       </div>
                     )}
@@ -387,7 +396,7 @@ const ScanAttendance = () => {
                       <div className="absolute inset-0 flex flex-col items-center justify-center"
                         style={{ background: "rgba(26,26,26,0.92)" }}>
                         <div className="w-12 h-12 rounded-full border-[3px] border-t-transparent animate-spin mb-3"
-                          style={{ borderColor: "#9B59B6", borderTopColor: "transparent" }} />
+                          style={{ borderColor: "#8b4fa2", borderTopColor: "transparent" }} />
                         <p className="text-white text-xs font-bold">Verifying...</p>
                       </div>
                     )}
@@ -411,15 +420,13 @@ const ScanAttendance = () => {
                   <div className="flex gap-3">
                     {!scanning ? (
                       <button onClick={startScanner} disabled={loading}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-white text-sm font-black transition-all disabled:opacity-50"
-                        style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)", boxShadow: "0 4px 15px rgba(139,79,162,0.35)" }}>
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-black transition-all disabled:opacity-50 bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] shadow-md hover:shadow-lg">
                         <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
                         Start Scanning
                       </button>
                     ) : (
                       <button onClick={stopScanner}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-white text-sm font-black transition-all"
-                        style={{ background: "linear-gradient(135deg,#FF6B6B,#dc2626)", boxShadow: "0 4px 15px rgba(239,68,68,0.3)" }}>
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-black transition-all bg-linear-to-r from-red-500 to-red-600 shadow-md hover:shadow-lg">
                         <span className="material-symbols-outlined text-[18px]">stop_circle</span>
                         Stop Scanner
                       </button>
@@ -427,10 +434,10 @@ const ScanAttendance = () => {
 
                     {selectedEvent && (
                       <button onClick={() => navigate(`/organizer/attendance/${selectedEvent}`)}
-                        className="flex items-center gap-1.5 px-4 py-3 rounded-2xl text-sm font-bold border-2 transition-all"
-                        style={{ borderColor: "#9B59B6", color: "#9B59B6" }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "#9B59B6"; e.currentTarget.style.color = "white"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9B59B6"; }}>
+                        className="flex items-center gap-1.5 px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all"
+                        style={{ borderColor: "#8b4fa2", color: "#8b4fa2" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#8b4fa2"; e.currentTarget.style.color = "white"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#8b4fa2"; }}>
                         <span className="material-symbols-outlined text-[16px]">list_alt</span>
                         View List
                       </button>
@@ -440,12 +447,11 @@ const ScanAttendance = () => {
               </div>
 
               {/* Info Card */}
-              <div className="bg-white rounded-3xl p-5"
-                style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.07)", border: "1px solid rgba(155,89,182,0.07)" }}>
+              <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">How It Works</p>
                 <div className="space-y-3">
                   {[
-                    { icon: "event", color: "#9B59B6", text: "Select the event you're managing" },
+                    { icon: "event", color: "#8b4fa2", text: "Select the event you're managing" },
                     { icon: "qr_code_scanner", color: "#4ECDC4", text: "Start scanner and allow camera access" },
                     { icon: "person", color: "#FF6B6B", text: "Student opens QR from MyRegistrations" },
                     { icon: "task_alt", color: "#d97706", text: "Point camera at QR — attendance auto-marks" },
@@ -470,20 +476,16 @@ const ScanAttendance = () => {
             <div className="space-y-5">
 
               {/* Result Card */}
-              <div className="bg-white rounded-3xl overflow-hidden"
-                style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.1)", border: "1px solid rgba(155,89,182,0.08)", minHeight: "300px" }}>
+              <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100" style={{ minHeight: "300px" }}>
 
                 {!result ? (
                   <div className="h-full flex flex-col items-center justify-center p-10 text-center" style={{ minHeight: "300px" }}>
-                    <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-5"
-                      style={{ background: "linear-gradient(135deg,#f5eefa,#edfafa)" }}>
-                      <span className="material-symbols-outlined text-[40px] text-[#9B59B6]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-5 bg-linear-to-br from-purple-50 to-teal-50">
+                      <span className="material-symbols-outlined text-[40px] text-[#8b4fa2]" style={{ fontVariationSettings: "'FILL' 1" }}>
                         pending
                       </span>
                     </div>
-                    <p className="font-black text-gray-700 text-base" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                      Awaiting Scan
-                    </p>
+                    <p className="font-black text-gray-700 text-base">Awaiting Scan</p>
                     <p className="text-xs text-gray-400 mt-1 max-w-xs">
                       Scan result will appear here after a student's QR code is detected
                     </p>
@@ -503,9 +505,7 @@ const ScanAttendance = () => {
                           </span>
                         </div>
                         <div>
-                          <p className="font-black text-gray-800" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                            {cfg.label}
-                          </p>
+                          <p className="font-black text-gray-800">{cfg.label}</p>
                           <p className="text-xs text-gray-400">{result.timestamp}</p>
                         </div>
                         <div className="ml-auto px-3 py-1 rounded-full text-[10px] font-black"
@@ -514,17 +514,16 @@ const ScanAttendance = () => {
                         </div>
                       </div>
 
-                      <p className="text-sm text-gray-600 font-semibold mb-5 px-4 py-3 rounded-2xl bg-gray-50">
+                      <p className="text-sm text-gray-600 font-semibold mb-5 px-4 py-3 rounded-xl bg-gray-50">
                         {result.message}
                       </p>
 
-                      {/* Student Info - Always show if available (even for already marked) */}
+                      {/* Student Info */}
                       {(result.studentName && result.studentName !== "Unknown Student") ? (
                         <div className="space-y-3 mb-5">
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Student Info</p>
-                          <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#f7f4fb]">
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                              style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)" }}>
+                          <div className="flex items-center gap-3 p-3 rounded-xl bg-[#f7f4fb]">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4]">
                               <span className="material-symbols-outlined text-[18px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>
                                 person
                               </span>
@@ -536,9 +535,8 @@ const ScanAttendance = () => {
                           </div>
 
                           {(result.eventTitle && result.eventTitle !== "Unknown Event") && (
-                            <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#edfafa]">
-                              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                                style={{ background: "linear-gradient(135deg,#4ECDC4,#2bb5ac)" }}>
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-[#edfafa]">
+                              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-linear-to-r from-[#4ECDC4] to-teal-500">
                                 <span className="material-symbols-outlined text-[18px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>
                                   event
                                 </span>
@@ -551,8 +549,7 @@ const ScanAttendance = () => {
                           )}
                         </div>
                       ) : (
-                        /* Show warning if no data */
-                        <div className="mb-5 p-3 rounded-2xl bg-yellow-50 border border-yellow-100">
+                        <div className="mb-5 p-3 rounded-xl bg-yellow-50 border border-yellow-100">
                           <p className="text-xs text-yellow-700 flex items-center gap-2">
                             <span className="material-symbols-outlined text-sm">warning</span>
                             Student details not found in response. Please check backend population.
@@ -560,10 +557,9 @@ const ScanAttendance = () => {
                         </div>
                       )}
 
-                      {/* Scan Again Button - Always show */}
+                      {/* Scan Again Button */}
                       <button onClick={handleScanAgain}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-white text-sm font-black transition-all"
-                        style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)", boxShadow: "0 4px 15px rgba(139,79,162,0.3)" }}>
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-black transition-all bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] shadow-md hover:shadow-lg">
                         <span className="material-symbols-outlined text-[18px]">refresh</span>
                         Scan Next Student
                       </button>
@@ -573,16 +569,13 @@ const ScanAttendance = () => {
               </div>
 
               {/* Scan History */}
-              <div className="bg-white rounded-3xl overflow-hidden"
-                style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.07)", border: "1px solid rgba(155,89,182,0.07)" }}>
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
+              <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-[#9B59B6]">history</span>
-                    <p className="font-black text-gray-800 text-sm" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                      Scan History
-                    </p>
+                    <span className="material-symbols-outlined text-[18px] text-[#8b4fa2]">history</span>
+                    <p className="font-black text-gray-800 text-sm">Scan History</p>
                     {scanHistory.length > 0 && (
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#f5eefa] text-[#8b4fa2]">
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-[#8b4fa2]">
                         {scanHistory.length}
                       </span>
                     )}
@@ -598,11 +591,11 @@ const ScanAttendance = () => {
 
                 {scanHistory.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-                    <span className="material-symbols-outlined text-[36px] mb-2" style={{ color: "#d8b4fe" }}>history</span>
+                    <span className="material-symbols-outlined text-[36px] mb-2 text-purple-300">history</span>
                     <p className="text-xs font-semibold">No scans yet</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
+                  <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
                     {scanHistory.map((entry) => {
                       const c = RESULT_CONFIG[entry.type];
                       return (

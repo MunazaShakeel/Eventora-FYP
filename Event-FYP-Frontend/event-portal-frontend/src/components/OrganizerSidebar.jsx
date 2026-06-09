@@ -2,16 +2,21 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const OrganizerSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { token, logout } = useAuth();
+  const { token, logout, user } = useAuth();
+  const socket = useSocket();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
   const notifRef = useRef(null);
 
   const navItems = [
@@ -23,7 +28,7 @@ const OrganizerSidebar = () => {
     { label: "Feedback",        path: "/organizer/feedback",         icon: "rate_review" },
     { label: "Certificates",    path: "/organizer/certificates",     icon: "workspace_premium" },
     { label: "Scan Attendance", path: "/organizer/scan-attendance",  icon: "qr_code_scanner" },
-    { path: "/organizer/profile", icon: "person", label: "Profile" }
+    { label: "Profile",         path: "/organizer/profile",          icon: "person" }
   ];
 
   const handleLogout = () => {
@@ -31,60 +36,177 @@ const OrganizerSidebar = () => {
     navigate("/login-organizer");
   };
 
-  // ── Fetch notifications from existing APIs ──
+  // ── Fetch notifications from API ──
   const fetchNotifications = async () => {
     if (!token) return;
+    setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const [eventsRes, regsRes] = await Promise.all([
-        axios.get("http://localhost:5000/api/organizer-dashboard/upcoming-events", { headers }),
-        axios.get("http://localhost:5000/api/organizer-dashboard/recent-registrations", { headers }),
-      ]);
-
-      const notifs = [];
-
-      // Event status notifications
-      const events = eventsRes.data?.upcomingEvents || [];
-      events.slice(0, 3).forEach((ev) => {
-        notifs.push({
-          id: `ev-${ev._id}`,
-          icon: "event",
-          color: "#8b4fa2",
-          bg: "#f5eefa",
-          message: `"${ev.title}" is coming up`,
-          time: ev.start_date
-            ? new Date(ev.start_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" })
-            : "",
-        });
-      });
-
-      // Recent registrations
-      const regs = regsRes.data?.recentRegistrations || [];
-      regs.slice(0, 3).forEach((reg) => {
-        const name = reg?.student_id?.name || "A student";
-        const event = reg?.event_id?.title || "your event";
-        notifs.push({
-          id: `reg-${reg._id}`,
-          icon: "person_add",
-          color: "#4ECDC4",
-          bg: "#edfafa",
-          message: `${name} registered for "${event}"`,
-          time: reg.registration_date
-            ? new Date(reg.registration_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" })
-            : "",
-        });
-      });
-
-      setNotifications(notifs);
-      setUnreadCount(notifs.length);
+      
+      // Fetch real notifications from database
+      const response = await axios.get(`${API_URL}/notifications`, { headers });
+      
+      if (response.data.success) {
+        const notifs = response.data.notifications.map(notif => ({
+          id: notif._id,
+          _id: notif._id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          isRead: notif.isRead,
+          time: notif.createdAt ? new Date(notif.createdAt).toLocaleString() : "",
+          icon: getIconByType(notif.type),
+          color: getColorByType(notif.type),
+          bg: getBgByType(notif.type)
+        }));
+        
+        setNotifications(notifs);
+        setUnreadCount(response.data.unreadCount);
+      }
     } catch (err) {
       console.error("Notification fetch failed:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Get icon based on notification type
+  const getIconByType = (type) => {
+    switch(type) {
+      case 'event': return 'event';
+      case 'certificate': return 'workspace_premium';
+      case 'attendance': return 'qr_code_scanner';
+      case 'task': return 'task_alt';
+      default: return 'notifications';
+    }
+  };
+
+  const getColorByType = (type) => {
+    switch(type) {
+      case 'event': return '#8b4fa2';
+      case 'certificate': return '#FFE66D';
+      case 'attendance': return '#4ECDC4';
+      case 'task': return '#FF6B6B';
+      default: return '#8b4fa2';
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch(type) {
+      case 'event': return '#f5eefa';
+      case 'certificate': return '#fff9e6';
+      case 'attendance': return '#e6faf8';
+      case 'task': return '#ffe6e6';
+      default: return '#f5eefa';
+    }
+  };
+
+  // Mark notification as read
+  const markAsRead = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/notifications/${notificationId}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNotifications(prev =>
+        prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Error marking as read:", err);
+    }
+  };
+
+  // Mark all as read
+  const markAllAsRead = async () => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/notifications/read-all`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error("Error marking all as read:", err);
+    }
+  };
+
+  // Delete notification
+  const deleteNotification = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.delete(`${API_URL}/notifications/${notificationId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const deleted = notifications.find(n => n._id === notificationId);
+      setNotifications(prev => prev.filter(n => n._id !== notificationId));
+      if (!deleted?.isRead) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+    }
+  };
+
+  // Listen for real-time notifications
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('new-notification', (notification) => {
+      const newNotif = {
+        id: notification._id,
+        _id: notification._id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        isRead: false,
+        time: new Date().toLocaleString(),
+        icon: getIconByType(notification.type),
+        color: getColorByType(notification.type),
+        bg: getBgByType(notification.type)
+      };
+      
+      setNotifications(prev => [newNotif, ...prev]);
+      setUnreadCount(prev => prev + 1);
+      
+      // Show toast (optional)
+      showToast(notification);
+    });
+
+    return () => {
+      socket.off('new-notification');
+    };
+  }, [socket]);
+
+  // Toast notification
+  const showToast = (notification) => {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-20 right-4 bg-white rounded-lg shadow-2xl p-3 max-w-sm z-50 animate-slide-up';
+    toast.innerHTML = `
+      <div class="flex items-start gap-2">
+        <div class="w-8 h-8 rounded-full bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] flex items-center justify-center">
+          <span class="text-white text-sm">🔔</span>
+        </div>
+        <div class="flex-1">
+          <h4 class="font-bold text-gray-800 text-sm">${notification.title}</h4>
+          <p class="text-xs text-gray-600">${notification.message}</p>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  };
+
+  // Initial fetch
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // poll every 30s
+    const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -176,12 +298,12 @@ const OrganizerSidebar = () => {
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button
-            onClick={() => { setNotifOpen(!notifOpen); setUnreadCount(0); }}
+            onClick={() => { setNotifOpen(!notifOpen); }}
             className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition relative"
           >
             <span className="material-symbols-outlined text-[22px] text-gray-600">notifications</span>
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center animate-pulse">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -190,21 +312,40 @@ const OrganizerSidebar = () => {
           {/* Notification Dropdown */}
           {notifOpen && (
             <div className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
                 <p className="text-sm font-black text-gray-800">Notifications</p>
-                <span className="text-[10px] font-bold text-[#8b4fa2] bg-purple-50 px-2 py-0.5 rounded-full">
-                  {notifications.length} new
-                </span>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-[10px] font-bold text-[#8b4fa2] bg-purple-100 px-2 py-0.5 rounded-full hover:bg-purple-200 transition"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                  <span className="text-[10px] font-bold text-[#8b4fa2] bg-purple-50 px-2 py-0.5 rounded-full">
+                    {notifications.filter(n => !n.isRead).length} new
+                  </span>
+                </div>
               </div>
-              {notifications.length === 0 ? (
+              
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-gray-400">
                   <span className="material-symbols-outlined text-[36px] mb-2">notifications_none</span>
                   <p className="text-sm font-semibold">No notifications</p>
                 </div>
               ) : (
-                <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
                   {notifications.map((n) => (
-                    <div key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer">
+                    <div 
+                      key={n.id} 
+                      className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? 'bg-purple-50/30' : ''}`}
+                      onClick={() => !n.isRead && markAsRead(n._id)}
+                    >
                       <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
                         style={{ backgroundColor: n.bg }}>
                         <span className="material-symbols-outlined text-[16px]" style={{ color: n.color, fontVariationSettings: "'FILL' 1" }}>
@@ -215,6 +356,12 @@ const OrganizerSidebar = () => {
                         <p className="text-xs font-semibold text-gray-700 leading-snug">{n.message}</p>
                         <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
                       </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteNotification(n._id); }}
+                        className="text-gray-300 hover:text-red-400 transition"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">close</span>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -227,14 +374,11 @@ const OrganizerSidebar = () => {
       {/* ── MOBILE SIDEBAR OVERLAY ── */}
       {sidebarOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
-          {/* Drawer */}
           <aside className="relative w-64 h-full bg-white flex flex-col shadow-2xl animate-slideIn">
-            {/* Close button */}
             <button
               onClick={() => setSidebarOpen(false)}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 transition"
@@ -273,16 +417,19 @@ const OrganizerSidebar = () => {
         })}
       </nav>
 
-      {/* Slide-in animation */}
       <style>{`
         @keyframes slideIn {
           from { transform: translateX(-100%); }
           to { transform: translateX(0); }
         }
+        @keyframes slide-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         .animate-slideIn { animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        .md\\:flex { padding-top: 0 !important; }
+        .animate-slide-up { animation: slide-up 0.3s ease-out; }
         @media (max-width: 767px) {
-          main { padding-top: 3.5rem !important; }
+          main { padding-top: 3.5rem !important; padding-bottom: 4rem !important; }
         }
       `}</style>
     </>

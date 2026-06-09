@@ -26,6 +26,7 @@ import AboutUs from "./pages/AboutUs";
 import OrganizerFeedback from "./pages/Organizer/OrganizerFeedback";
 import OrganizerCertificates from "./pages/Organizer/OrganizerCertificates";
 import OrganizerProfile from "./pages/Organizer/OrganizerProfile";
+import StudentProfile from "./pages/Student/StudentProfile";
 
 
 function App() {
@@ -57,6 +58,7 @@ function App() {
       <Route path="/student/browse-events" element={<BrowseEvents />} />
       <Route path="/student/my-registrations" element={<MyRegistrations />} />
       <Route path="/student/gallery" element={<StudentGallery />} />
+      <Route path="/student/profile" element={<StudentProfile />} />
 
 
 

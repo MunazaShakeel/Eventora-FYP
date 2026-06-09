@@ -1,9 +1,23 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const StudentSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { token, logout, user } = useAuth();
+  const socket = useSocket();
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const notifRef = useRef(null);
 
   const navItems = [
     { label: "Dashboard", path: "/student-dashboard", icon: "dashboard" },
@@ -15,9 +29,190 @@ const StudentSidebar = () => {
   ];
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    logout();
     navigate("/student-login");
   };
+
+  // ── Fetch notifications from API ──
+  const fetchNotifications = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/notifications`, { headers });
+      
+      if (response.data.success) {
+        const notifs = response.data.notifications.map(notif => ({
+          id: notif._id,
+          _id: notif._id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          isRead: notif.isRead,
+          time: notif.createdAt ? new Date(notif.createdAt).toLocaleString() : "",
+          icon: getIconByType(notif.type),
+          color: getColorByType(notif.type),
+          bg: getBgByType(notif.type)
+        }));
+        
+        setNotifications(notifs);
+        setUnreadCount(response.data.unreadCount);
+      }
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Get icon based on notification type
+  const getIconByType = (type) => {
+    switch(type) {
+      case 'event': return 'event';
+      case 'certificate': return 'workspace_premium';
+      case 'attendance': return 'qr_code_scanner';
+      case 'task': return 'task_alt';
+      default: return 'notifications';
+    }
+  };
+
+  const getColorByType = (type) => {
+    switch(type) {
+      case 'event': return '#8b4fa2';
+      case 'certificate': return '#FFE66D';
+      case 'attendance': return '#4ECDC4';
+      case 'task': return '#FF6B6B';
+      default: return '#8b4fa2';
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch(type) {
+      case 'event': return '#f5eefa';
+      case 'certificate': return '#fff9e6';
+      case 'attendance': return '#e6faf8';
+      case 'task': return '#ffe6e6';
+      default: return '#f5eefa';
+    }
+  };
+
+  // Mark notification as read
+  const markAsRead = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/notifications/${notificationId}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNotifications(prev =>
+        prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Error marking as read:", err);
+    }
+  };
+
+  // Mark all as read
+  const markAllAsRead = async () => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/notifications/read-all`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error("Error marking all as read:", err);
+    }
+  };
+
+  // Delete notification
+  const deleteNotification = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.delete(`${API_URL}/notifications/${notificationId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const deleted = notifications.find(n => n._id === notificationId);
+      setNotifications(prev => prev.filter(n => n._id !== notificationId));
+      if (!deleted?.isRead) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+    }
+  };
+
+  // Listen for real-time notifications
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('new-notification', (notification) => {
+      const newNotif = {
+        id: notification._id,
+        _id: notification._id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        isRead: false,
+        time: new Date().toLocaleString(),
+        icon: getIconByType(notification.type),
+        color: getColorByType(notification.type),
+        bg: getBgByType(notification.type)
+      };
+      
+      setNotifications(prev => [newNotif, ...prev]);
+      setUnreadCount(prev => prev + 1);
+      showToast(notification);
+    });
+
+    return () => {
+      socket.off('new-notification');
+    };
+  }, [socket]);
+
+  // Toast notification
+  const showToast = (notification) => {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-20 right-4 bg-white rounded-lg shadow-2xl p-3 max-w-sm z-50 animate-slide-up';
+    toast.innerHTML = `
+      <div class="flex items-start gap-2">
+        <div class="w-8 h-8 rounded-full bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] flex items-center justify-center">
+          <span class="text-white text-sm">🔔</span>
+        </div>
+        <div class="flex-1">
+          <h4 class="font-bold text-gray-800 text-sm">${notification.title}</h4>
+          <p class="text-xs text-gray-600">${notification.message}</p>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  // Close notif dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   return (
     <>
@@ -36,7 +231,6 @@ const StudentSidebar = () => {
               <span className="absolute left-0 bottom-0 w-full h-0.5 bg-linear-to-r from-[#9B59B6] to-yellow-400 rounded-full"></span>
             </span>
           </Link>
-
           <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mt-1">
             Student Portal
           </p>
@@ -80,8 +274,161 @@ const StudentSidebar = () => {
         </div>
       </aside>
 
+      {/* ===== MOBILE TOP HEADER ===== */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 shadow-sm px-4 h-14 flex items-center justify-between">
+        {/* Menu Button */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition"
+        >
+          <span className="material-symbols-outlined text-[22px] text-gray-600">menu</span>
+        </button>
+
+        {/* Logo */}
+        <span className="text-2xl font-bold" style={{ fontFamily: "Great Vibes, cursive" }}>
+          <span className="text-[#9B59B6]">Event</span>
+          <span className="text-yellow-500">ora</span>
+        </span>
+
+        {/* Notification Bell */}
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => { setNotifOpen(!notifOpen); }}
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition relative"
+          >
+            <span className="material-symbols-outlined text-[22px] text-gray-600">notifications</span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center animate-pulse">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notification Dropdown */}
+          {notifOpen && (
+            <div className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
+                <p className="text-sm font-black text-gray-800">Notifications</p>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-[10px] font-bold text-[#8b4fa2] bg-purple-100 px-2 py-0.5 rounded-full hover:bg-purple-200 transition"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                  <span className="text-[10px] font-bold text-[#8b4fa2] bg-purple-50 px-2 py-0.5 rounded-full">
+                    {notifications.filter(n => !n.isRead).length} new
+                  </span>
+                </div>
+              </div>
+              
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                  <span className="material-symbols-outlined text-[36px] mb-2">notifications_none</span>
+                  <p className="text-sm font-semibold">No notifications</p>
+                </div>
+              ) : (
+                <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+                  {notifications.map((n) => (
+                    <div 
+                      key={n.id} 
+                      className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? 'bg-purple-50/30' : ''}`}
+                      onClick={() => !n.isRead && markAsRead(n._id)}
+                    >
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                        style={{ backgroundColor: n.bg }}>
+                        <span className="material-symbols-outlined text-[16px]" style={{ color: n.color, fontVariationSettings: "'FILL' 1" }}>
+                          {n.icon}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-700 leading-snug">{n.message}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteNotification(n._id); }}
+                        className="text-gray-300 hover:text-red-400 transition"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">close</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ===== MOBILE SIDEBAR OVERLAY ===== */}
+      {sidebarOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <aside className="relative w-64 h-full bg-white flex flex-col shadow-2xl animate-slideIn">
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 transition"
+            >
+              <span className="material-symbols-outlined text-[20px] text-gray-400">close</span>
+            </button>
+            
+            {/* Logo */}
+            <div className="px-8 pt-8 pb-6">
+              <span className="text-4xl font-bold" style={{ fontFamily: "Great Vibes, cursive" }}>
+                <span className="text-[#9B59B6]">Event</span>
+                <span className="text-yellow-500">ora</span>
+              </span>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mt-1">
+                Student Portal
+              </p>
+            </div>
+
+            {/* Nav Links */}
+            <nav className="flex-1 space-y-1 px-4">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => { navigate(item.path); setSidebarOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
+                      ${isActive
+                        ? "bg-[#8b4fa2] text-white shadow-md shadow-purple-200"
+                        : "text-gray-500 hover:bg-purple-50 hover:text-[#8b4fa2]"
+                      }`}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Logout */}
+            <div className="px-4 py-6">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-50 hover:text-red-500 transition-all duration-200"
+              >
+                <span className="material-symbols-outlined text-[20px]">logout</span>
+                Logout
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
       {/* ===== MOBILE BOTTOM NAV ===== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-50 shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-40 shadow-lg">
         {[
           { label: "Home", path: "/student-dashboard", icon: "dashboard" },
           { label: "Events", path: "/student/browse-events", icon: "event" },
@@ -108,6 +455,22 @@ const StudentSidebar = () => {
           );
         })}
       </nav>
+
+      <style>{`
+        @keyframes slideIn {
+          from { transform: translateX(-100%); }
+          to { transform: translateX(0); }
+        }
+        @keyframes slide-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slideIn { animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-slide-up { animation: slide-up 0.3s ease-out; }
+        @media (max-width: 767px) {
+          main { padding-top: 3.5rem !important; padding-bottom: 4rem !important; }
+        }
+      `}</style>
     </>
   );
 };

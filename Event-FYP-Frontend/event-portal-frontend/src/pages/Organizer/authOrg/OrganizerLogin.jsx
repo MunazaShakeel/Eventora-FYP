@@ -4,6 +4,8 @@ import axios from "axios";
 import Navbar from "../../../components/Navbar";
 import { useAuth } from "../../../context/AuthContext";  // ✅ ADD
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";  // ✅ ADD
+
 const OrganizerLogin = () => {
   const navigate = useNavigate();
   const { login } = useAuth();  // ✅ ADD
@@ -19,7 +21,7 @@ const OrganizerLogin = () => {
     e.preventDefault(); //stop page from refreshing on submit
     try {
       setError("");
-      const res = await axios.post("http://localhost:5000/api/organizers/login", formData);
+      const res = await axios.post(`${API_URL}/organizers/login`, formData);
       login(res.data.token);  //
       navigate("/organizer-dashboard");
     } catch (err) {

@@ -5,8 +5,10 @@ import OrganizerSidebar from "../../components/OrganizerSidebar";
 import { useAuth } from "../../context/AuthContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
+  Tooltip, ResponsiveContainer, Cell  // ← Add "Cell"
 } from "recharts";
+
+
 
 const useCounter = (target, duration = 1500, start = false) => {
   const [count, setCount] = useState(0);
@@ -102,6 +104,7 @@ const OrganizerDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [chartType, setChartType] = useState("weekly");
 
   // ── Greeting + Clock ──
   useEffect(() => {
@@ -432,36 +435,56 @@ const OrganizerDashboard = () => {
             </div>
           </div>
 
-          {/* ── CHARTS ROW ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
-              style={{ animation: "slideUp 0.5s ease forwards 350ms", opacity: 0 }}>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-lg font-black text-gray-800">📈 Registration Trends</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Last 7 days — real data</p>
-                </div>
-                <span className="material-symbols-outlined text-[#8b4fa2]" style={{ fontVariationSettings: "'FILL' 1" }}>bar_chart</span>
-              </div>
-              {trends.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                  <span className="material-symbols-outlined text-[40px] mb-2">bar_chart</span>
-                  <p className="text-sm font-semibold">No registration data yet</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={trends} barSize={32}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} allowDecimals={false} />
-                    <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} cursor={{ fill: "#f5eefa" }} />
-                    <Bar dataKey="count" name="Registrations" fill="#8b4fa2" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+        {/* ── CHARTS ROW ── */}
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+  <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+    style={{ animation: "slideUp 0.5s ease forwards 350ms", opacity: 0 }}>
+    <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <div>
+        <h3 className="text-lg font-black text-gray-800">📈 Registration Trends</h3>
+        <p className="text-xs text-gray-400 mt-0.5">Weekly / Monthly / Yearly view</p>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => setChartType("weekly")}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "weekly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+        >
+          Weekly
+        </button>
+        <button
+          onClick={() => setChartType("monthly")}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "monthly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+        >
+          Monthly
+        </button>
+        <button
+          onClick={() => setChartType("yearly")}
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "yearly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+        >
+          Yearly
+        </button>
+      </div>
+    </div>
+    
+    {/* Chart - Dynamically showing based on selected type */}
+    {trends.length === 0 ? (
+      <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+        <span className="material-symbols-outlined text-[40px] mb-2">bar_chart</span>
+        <p className="text-sm font-semibold">No registration data yet</p>
+      </div>
+    ) : (
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={trends} barSize={chartType === "yearly" ? 60 : 32}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+          <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} />
+          <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} allowDecimals={false} />
+          <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} cursor={{ fill: "#f5eefa" }} />
+          <Bar dataKey="count" name="Registrations" fill="#8b4fa2" radius={[8, 8, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    )}
+  </div>
+  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
               style={{ animation: "slideUp 0.5s ease forwards 450ms", opacity: 0 }}>
               <div className="flex items-center justify-between mb-5">
                 <div>
@@ -512,48 +535,55 @@ const OrganizerDashboard = () => {
           {/* ── BOTTOM ROW ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* Top Rated */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
-              style={{ animation: "slideUp 0.5s ease forwards 500ms", opacity: 0 }}>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-lg font-black text-gray-800">🏆 Top Rated</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Based on student feedback</p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-2xl text-amber-400" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                </div>
-              </div>
-              {topEvents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-                  <span className="material-symbols-outlined text-5xl mb-3 opacity-50">reviews</span>
-                  <p className="text-sm font-semibold">No feedback yet</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {topEvents.map((ev, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-md shrink-0"
-                          style={{ background: medalGradients[Math.min(i, 3)] }}>
-                          {i + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-700 truncate">
-                            {ev.title || ev.eventTitle || `Event #${ev._id?.toString().slice(-6)}`}
-                          </p>
-                          <p className="text-[10px] text-gray-400">{ev.totalFeedbacks} reviews</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full shadow-sm shrink-0">
-                        <span className="material-symbols-outlined text-sm text-amber-400" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                        <span className="text-sm font-black text-amber-600">{ev.avgRating?.toFixed(1)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+         {/* Top Rated */}
+<div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+  style={{ animation: "slideUp 0.5s ease forwards 500ms", opacity: 0 }}>
+  <div className="flex items-center justify-between mb-5">
+    <div>
+      <h3 className="text-lg font-black text-gray-800">🏆 Top Rated</h3>
+      <p className="text-xs text-gray-400 mt-0.5">Click to view all feedback</p>
+    </div>
+    <button 
+      onClick={() => navigate("/organizer/feedback")}
+      className="text-xs font-bold text-[#8b4fa2] hover:underline flex items-center gap-1"
+    >
+      View All 
+    </button>
+  </div>
+  {topEvents.length === 0 ? (
+    <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+      <span className="material-symbols-outlined text-5xl mb-3 opacity-50">reviews</span>
+      <p className="text-sm font-semibold">No feedback yet</p>
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {topEvents.map((ev, i) => (
+        <div 
+          key={i} 
+          onClick={() => navigate("/organizer/feedback")}
+          className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-md shrink-0"
+              style={{ background: medalGradients[Math.min(i, 3)] }}>
+              {i + 1}
             </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-gray-700 truncate">
+                {ev.title || ev.eventTitle || `Event #${ev._id?.toString().slice(-6)}`}
+              </p>
+              <p className="text-[10px] text-gray-400">{ev.totalFeedbacks} reviews</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full shadow-sm shrink-0">
+            <span className="material-symbols-outlined text-sm text-amber-400" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+            <span className="text-sm font-black text-amber-600">{ev.avgRating?.toFixed(1)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
             {/* Upcoming Events */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
@@ -600,46 +630,53 @@ const OrganizerDashboard = () => {
               )}
             </div>
 
-            {/* Recent Registrations */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
-              style={{ animation: "slideUp 0.5s ease forwards 700ms", opacity: 0 }}>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-lg font-black text-gray-800">👥 Recent Registrations</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Latest students registered</p>
-                </div>
-                <span className="material-symbols-outlined text-[#4ECDC4]" style={{ fontVariationSettings: "'FILL' 1" }}>person_add</span>
-              </div>
-              {recentRegistrations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-                  <span className="material-symbols-outlined text-5xl mb-3 opacity-50">group</span>
-                  <p className="text-sm font-semibold">No registrations yet</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {recentRegistrations.map((reg, i) => {
-                    const name = reg?.student_id?.name || "Unknown";
-                    const avatarColors = ["#8b4fa2", "#4ECDC4", "#FF6B6B", "#f59e0b", "#6366f1"];
-                    return (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black shrink-0"
-                          style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
-                          {name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-gray-800 truncate">{name}</p>
-                          <p className="text-xs text-gray-400 truncate">{reg?.event_id?.title || "Event"}</p>
-                        </div>
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap
-                          ${reg.role === "Volunteer" ? "bg-[#edfafa] text-[#4ECDC4]" : "bg-[#f5eefa] text-[#8b4fa2]"}`}>
-                          {reg.role}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+          {/* Recent Registrations */}
+<div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+  style={{ animation: "slideUp 0.5s ease forwards 700ms", opacity: 0 }}>
+  <div className="flex items-center justify-between mb-5">
+    <div>
+      <h3 className="text-lg font-black text-gray-800">👥 Recent Registrations</h3>
+      <p className="text-xs text-gray-400 mt-0.5">Click to view all registrations</p>
+    </div>
+    <button 
+      onClick={() => navigate("/organizer/my-events")}
+    className="text-xs font-bold text-[#8b4fa2] hover:underline">View All</button> 
+   
+  </div>
+  {recentRegistrations.length === 0 ? (
+    <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+      <span className="material-symbols-outlined text-5xl mb-3 opacity-50">group</span>
+      <p className="text-sm font-semibold">No registrations yet</p>
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {recentRegistrations.slice(0, 5).map((reg, i) => {
+        const name = reg?.student_id?.name || "Unknown";
+        const avatarColors = ["#8b4fa2", "#4ECDC4", "#FF6B6B", "#f59e0b", "#6366f1"];
+        return (
+          <div 
+            key={i} 
+            onClick={() => navigate("/organizer/my-events")}
+            className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black shrink-0"
+              style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
+              {name.charAt(0).toUpperCase()}
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-800 truncate">{name}</p>
+              <p className="text-xs text-gray-400 truncate">{reg?.event_id?.title || "Event"}</p>
+            </div>
+            <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap
+              ${reg.role === "Volunteer" ? "bg-[#edfafa] text-[#4ECDC4]" : "bg-[#f5eefa] text-[#8b4fa2]"}`}>
+              {reg.role}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
           </div>
         </main>
       </div>

@@ -3,7 +3,7 @@ import OrganizerSidebar from "../../components/OrganizerSidebar";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
 
-const API = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const Stars = ({ rating, size = 15 }) => (
   <div className="flex items-center gap-0.5">
@@ -63,8 +63,7 @@ const OrganizerFeedback = () => {
       try {
         setError(null);
         
-        // Step 1: get organizer's events
-        const evRes = await axios.get(`${API}/api/events/organizer`, {
+        const evRes = await axios.get(`${API_URL}/api/events/organizer`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -77,11 +76,10 @@ const OrganizerFeedback = () => {
           return; 
         }
 
-        // Step 2: fetch feedbacks for each event
         const results = await Promise.all(
           evArray.map((ev) =>
             axios
-              .get(`${API}/api/feedbacks/event/${ev._id}`, {
+              .get(`${API_URL}/api/feedbacks/event/${ev._id}`, {
                 headers: { Authorization: `Bearer ${token}` },
               })
               .then((r) => {
@@ -109,7 +107,7 @@ const OrganizerFeedback = () => {
     if (!deleteModal) return;
     try {
       setDeleting(true);
-      await axios.delete(`${API}/api/feedbacks/${deleteModal}`, {
+      await axios.delete(`${API_URL}/api/feedbacks/${deleteModal}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setFeedbacks((prev) => prev.filter((f) => f._id !== deleteModal));
@@ -166,7 +164,6 @@ const OrganizerFeedback = () => {
 
       <main className="flex-1 md:ml-64 pb-24 md:pb-8">
 
-        {/* ── HEADER BANNER ── */}
         <div
           className="relative overflow-hidden px-8 pt-10 pb-8"
           style={{ background: "linear-gradient(135deg,#9B59B6 0%,#6d3483 100%)" }}
@@ -205,7 +202,6 @@ const OrganizerFeedback = () => {
 
         <div className="px-6 pt-6 max-w-7xl mx-auto">
           
-          {/* Error Display */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 rounded-2xl border border-red-200">
               <div className="flex items-center gap-3">
@@ -217,10 +213,8 @@ const OrganizerFeedback = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            {/* ── LEFT SIDEBAR (4 columns) ── */}
             <div className="lg:col-span-4 space-y-5">
 
-              {/* Stats Card */}
               <div className="bg-white rounded-3xl overflow-hidden"
                 style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.09)", border: "1px solid rgba(155,89,182,0.08)" }}>
                 
@@ -254,7 +248,6 @@ const OrganizerFeedback = () => {
                 </div>
               </div>
 
-              {/* Rating Breakdown */}
               {filtered.length > 0 && (
                 <div className="bg-white rounded-3xl overflow-hidden"
                   style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.07)", border: "1px solid rgba(155,89,182,0.07)" }}>
@@ -276,7 +269,6 @@ const OrganizerFeedback = () => {
                 </div>
               )}
 
-              {/* Event Filter */}
               <div className="bg-white rounded-3xl overflow-hidden"
                 style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.07)", border: "1px solid rgba(155,89,182,0.07)" }}>
                 
@@ -327,10 +319,8 @@ const OrganizerFeedback = () => {
               </div>
             </div>
 
-            {/* ── RIGHT FEEDBACK LIST (8 columns) ── */}
             <div className="lg:col-span-8 space-y-4">
 
-              {/* Sort bar */}
               <div className="flex items-center justify-between flex-wrap gap-3 bg-white rounded-2xl px-5 py-3"
                 style={{ boxShadow: "0 2px 12px rgba(155,89,182,0.06)", border: "1px solid rgba(155,89,182,0.06)" }}>
                 <div className="flex items-center gap-2">
@@ -358,7 +348,6 @@ const OrganizerFeedback = () => {
                 </div>
               </div>
 
-              {/* Loading State */}
               {loading ? (
                 <div className="space-y-4">
                   {[...Array(3)].map((_, i) => (
@@ -411,12 +400,10 @@ const OrganizerFeedback = () => {
                         className="bg-white rounded-3xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group"
                         style={{ boxShadow: "0 2px 16px rgba(155,89,182,0.08)", border: "1px solid rgba(155,89,182,0.08)" }}>
 
-                        {/* Rating Accent Bar */}
                         <div className="h-1 w-full transition-all duration-300 group-hover:h-1.5" style={{ background: getRatingAccent(fb.rating) }} />
 
                         <div className="p-5">
                           <div className="flex items-start gap-4">
-                            {/* Avatar */}
                             <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 text-white text-base font-black shadow-md transition-transform group-hover:scale-105"
                               style={{ background: isAnonymous ? "linear-gradient(135deg,#94a3b8,#64748b)" : AVATAR_GRADS[idx % AVATAR_GRADS.length] }}>
                               {initials}
@@ -444,13 +431,11 @@ const OrganizerFeedback = () => {
 
                               <div className="mb-2"><Stars rating={fb.rating} size={13} /></div>
 
-                              {/* Event Tag */}
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-linear-to-r from-purple-50 to-purple-100 text-[#8b4fa2] mb-3 shadow-sm">
                                 <span className="material-symbols-outlined text-[12px]">event</span>
                                 {fb.eventTitle}
                               </span>
 
-                              {/* Comment */}
                               {fb.comments && (
                                 <div className="bg-gray-50 rounded-2xl px-4 py-3 mt-2 border border-gray-100">
                                   <div className="flex items-start gap-2">
@@ -461,7 +446,6 @@ const OrganizerFeedback = () => {
                             </div>
                           </div>
 
-                          {/* Footer */}
                           <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
                             <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
                               <span className="material-symbols-outlined text-[13px]">schedule</span>
@@ -485,7 +469,6 @@ const OrganizerFeedback = () => {
         </div>
       </main>
 
-      {/* ── DELETE MODAL ── */}
       {deleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-7 text-center transform transition-all duration-200 scale-100">

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../../../components/Navbar";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";  // ✅ ADD
+
 const OrganizerRegister = () => {
   const navigate = useNavigate();
 
@@ -79,7 +81,7 @@ const OrganizerRegister = () => {
     if (validationError) return setError(validationError);
 
     try {
-      await axios.post("http://localhost:5000/api/organizers/register", {
+      await axios.post(`${API_URL}/organizers/register`, {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
