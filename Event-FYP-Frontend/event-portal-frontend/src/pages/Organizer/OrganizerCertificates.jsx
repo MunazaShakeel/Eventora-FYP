@@ -3,29 +3,10 @@ import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
 import OrganizerSidebar from "../../components/OrganizerSidebar";
 
-const API = "http://localhost:5000";
+// ✅ Use environment variable for API URL
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-// Star component (matching feedback page)
-const Stars = ({ rating, size = 15 }) => (
-  <div className="flex items-center gap-0.5">
-    {[1, 2, 3, 4, 5].map((s) => (
-      <span
-        key={s}
-        className="material-symbols-outlined"
-        style={{
-          fontSize: size,
-          color: s <= rating ? "#FFE66D" : "#e5e7eb",
-          fontVariationSettings: "'FILL' 1",
-          filter: s <= rating ? "drop-shadow(0 0 3px rgba(255,230,109,0.6))" : "none",
-        }}
-      >
-        star
-      </span>
-    ))}
-  </div>
-);
-
-// Avatar gradients (matching feedback page)
+// Avatar gradients
 const AVATAR_GRADS = [
   "linear-gradient(135deg,#9B59B6,#6d3483)",
   "linear-gradient(135deg,#8b4fa2,#6d3483)",
@@ -49,6 +30,7 @@ const OrganizerCertificates = () => {
   const [deleteModal, setDeleteModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [previewCert, setPreviewCert] = useState(null);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -65,7 +47,7 @@ const OrganizerCertificates = () => {
 
       try {
         setLoadingEvents(true);
-        const res = await axios.get(`${API}/api/events/organizer`, {
+        const res = await axios.get(`${API_URL}/api/events/organizer`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -96,10 +78,10 @@ const OrganizerCertificates = () => {
       setLoadingStudents(true);
       try {
         const [regRes, certRes] = await Promise.all([
-          axios.get(`${API}/api/registrations/events/${selectedEvent}`, {
+          axios.get(`${API_URL}/api/registrations/events/${selectedEvent}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get(`${API}/api/certificates?event_id=${selectedEvent}`, {
+          axios.get(`${API_URL}/api/certificates?event_id=${selectedEvent}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
@@ -135,7 +117,7 @@ const OrganizerCertificates = () => {
     
     try {
       await axios.post(
-        `${API}/api/certificates/issue`,
+        `${API_URL}/api/certificates/issue`,
         {
           student_id: student_id,
           event_id: selectedEvent,
@@ -151,8 +133,7 @@ const OrganizerCertificates = () => {
       
       showToast("✅ Certificate issued successfully!", "success");
       
-      // Refresh certificates list
-      const certRes = await axios.get(`${API}/api/certificates?event_id=${selectedEvent}`, {
+      const certRes = await axios.get(`${API_URL}/api/certificates?event_id=${selectedEvent}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setIssuedCerts(certRes.data?.data || []);
@@ -165,7 +146,6 @@ const OrganizerCertificates = () => {
     }
   };
 
-  // ✅ Fixed Download Certificate Function
   const handleDownloadCertificate = async (certId, studentName) => {
     if (!token) {
       showToast("Please login again", "error");
@@ -174,12 +154,11 @@ const OrganizerCertificates = () => {
     
     setDownloadingId(certId);
     try {
-      const response = await axios.get(`${API}/api/certificates/download/${certId}`, {
+      const response = await axios.get(`${API_URL}/api/certificates/download/${certId}`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob'
       });
       
-      // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -198,21 +177,37 @@ const OrganizerCertificates = () => {
     }
   };
 
+  // Delete Certificate Function
   const handleDeleteCertificate = async () => {
     if (!deleteModal) return;
+    
     try {
       setDeleting(true);
-      await axios.delete(`${API}/api/certificates/${deleteModal}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await axios.delete(`${API_URL}/api/certificates/${deleteModal._id}`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
-      setIssuedCerts((prev) => prev.filter((c) => c._id !== deleteModal));
-      setDeleteModal(null);
-      showToast("Certificate deleted successfully", "success");
+      
+      if (response.data?.success) {
+        setIssuedCerts((prev) => prev.filter((c) => c._id !== deleteModal._id));
+        setDeleteModal(null);
+        showToast("Certificate deleted successfully", "success");
+      } else {
+        showToast(response.data?.message || "Failed to delete certificate", "error");
+      }
     } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to delete", "error");
+      console.error("Delete error:", err);
+      const errorMsg = err.response?.data?.message || "Failed to delete certificate";
+      showToast(errorMsg, "error");
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handlePreviewCertificate = (cert) => {
+    setPreviewCert(cert);
   };
 
   const filteredStudents = presentStudents.filter(student => 
@@ -222,7 +217,7 @@ const OrganizerCertificates = () => {
 
   const formatDate = (d) => {
     if (!d) return "";
-    return new Date(d).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" });
+    return new Date(d).toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
   };
 
   const pendingCount = presentStudents.length - issuedCerts.length;
@@ -244,7 +239,7 @@ const OrganizerCertificates = () => {
 
       <main className="flex-1 md:ml-64 pb-24 md:pb-8">
 
-        {/* ── HEADER BANNER (matching feedback page) ── */}
+        {/* HEADER BANNER */}
         <div
           className="relative overflow-hidden px-8 pt-10 pb-8"
           style={{ background: "linear-gradient(135deg,#9B59B6 0%,#6d3483 100%)" }}
@@ -466,7 +461,7 @@ const OrganizerCertificates = () => {
                 )}
               </div>
 
-              {/* Issued Certificates Section with Download Button */}
+              {/* Issued Certificates Section */}
               {issuedCerts.length > 0 && (
                 <div className="bg-white rounded-3xl overflow-hidden"
                   style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.09)", border: "1px solid rgba(155,89,182,0.08)" }}>
@@ -482,7 +477,7 @@ const OrganizerCertificates = () => {
                   </div>
 
                   <div className="divide-y divide-gray-100">
-                    {issuedCerts.map((cert, idx) => (
+                    {issuedCerts.map((cert) => (
                       <div key={cert._id} className="p-5 hover:bg-purple-50/30 transition-colors group">
                         <div className="flex items-center justify-between gap-4 flex-wrap">
                           <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -506,11 +501,20 @@ const OrganizerCertificates = () => {
                           </div>
                           
                           <div className="flex items-center gap-2">
-                            {/* ✅ Download Button */}
+                            {/* Preview Button */}
+                            <button
+                              onClick={() => handlePreviewCertificate(cert)}
+                              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all"
+                            >
+                              <span className="material-symbols-outlined text-sm">visibility</span>
+                              Preview
+                            </button>
+                            
+                            {/* Download Button */}
                             <button
                               onClick={() => handleDownloadCertificate(cert._id, cert.student_id?.name)}
                               disabled={downloadingId === cert._id}
-                              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 hover:text-purple-700 transition-all"
+                              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition-all"
                             >
                               {downloadingId === cert._id ? (
                                 <>
@@ -527,8 +531,8 @@ const OrganizerCertificates = () => {
                             
                             {/* Delete Button */}
                             <button
-                              onClick={() => setDeleteModal(cert._id)}
-                              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition-all"
+                              onClick={() => setDeleteModal(cert)}
+                              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all"
                             >
                               <span className="material-symbols-outlined text-sm">delete</span>
                               Delete
@@ -545,7 +549,62 @@ const OrganizerCertificates = () => {
         </div>
       </main>
 
-      {/* ── DELETE MODAL (matching feedback page) ── */}
+      {/* Preview Modal */}
+      {previewCert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => setPreviewCert(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all duration-200 scale-100" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-linear-to-r from-[#9B59B6] to-[#6d3483] p-5 rounded-t-3xl">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-black text-white">Certificate Preview</h3>
+                <button onClick={() => setPreviewCert(null)} className="text-white hover:bg-white/20 rounded-full p-1 transition">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            </div>
+            <div className="p-8">
+              <div className="border-8 border-purple-200 rounded-2xl p-8 bg-linear-to-br from-purple-50 to-pink-50">
+                <div className="text-center mb-6">
+                  <div className="text-5xl mb-3">🏆</div>
+                  <h2 className="text-3xl font-bold text-purple-700">Certificate of {previewCert.certificate_type}</h2>
+                  <div className="w-20 h-1 bg-linear-to-r from-purple-500 to-pink-500 mx-auto rounded-full mt-3"></div>
+                </div>
+                <div className="text-center mb-6">
+                  <p className="text-gray-600">This certificate is proudly presented to</p>
+                  <h3 className="text-4xl font-bold text-transparent bg-clip-text bg-linear-to-r from-purple-600 to-pink-600 my-4">
+                    {previewCert.student_id?.name}
+                  </h3>
+                  <p className="text-gray-600">for successfully participating in</p>
+                  <h4 className="text-2xl font-bold text-purple-700 my-3">{previewCert.event_id?.title}</h4>
+                  <div className="flex justify-center gap-4 text-sm text-gray-500 mt-3">
+                    <span>📅 {formatDate(previewCert.event_id?.start_date)}</span>
+                    <span>📍 {previewCert.event_id?.venue || "College Campus"}</span>
+                  </div>
+                </div>
+                <div className="text-center pt-4 border-t border-purple-200">
+                  <p className="text-sm text-gray-500">Issued on: {formatDate(previewCert.issued_date)}</p>
+                  <p className="text-xs text-gray-400 mt-2">Certificate ID: {previewCert._id}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 bg-gray-50 rounded-b-3xl flex justify-end gap-3">
+              <button onClick={() => setPreviewCert(null)} className="px-6 py-2 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:bg-gray-100">
+                Close
+              </button>
+              <button 
+                onClick={() => {
+                  handleDownloadCertificate(previewCert._id, previewCert.student_id?.name);
+                  setPreviewCert(null);
+                }}
+                className="px-6 py-2 rounded-xl text-white font-bold bg-linear-to-r from-[#9B59B6] to-[#6d3483] hover:shadow-lg"
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
       {deleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-7 text-center transform transition-all duration-200 scale-100">
@@ -553,7 +612,10 @@ const OrganizerCertificates = () => {
               <span className="material-symbols-outlined text-[34px] text-red-500" style={{ fontVariationSettings: "'FILL' 1" }}>delete_forever</span>
             </div>
             <h3 className="text-lg font-black text-gray-800 mb-2">Delete Certificate?</h3>
-            <p className="text-sm text-gray-500 mb-6">This certificate will be permanently removed.</p>
+            <p className="text-sm text-gray-500 mb-4">
+              Certificate for <span className="font-bold text-gray-700">{deleteModal.student_id?.name}</span> will be permanently removed.
+            </p>
+            <p className="text-xs text-red-500 mb-6">This action cannot be undone!</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteModal(null)}
                 className="flex-1 py-3 rounded-2xl border-2 border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import OrganizerSidebar from "../../components/OrganizerSidebar";
-import { Lock } from "lucide-react";
+import { Lock, Eye, EyeOff } from "lucide-react";
 
 export default function OrganizerProfile() {
   const [form, setForm] = useState({
@@ -15,6 +15,12 @@ export default function OrganizerProfile() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState({ text: "", error: false });
   const [showPassword, setShowPassword] = useState(false);
+  const [showOtherDepartment, setShowOtherDepartment] = useState(false);
+  const [otherDepartmentValue, setOtherDepartmentValue] = useState("");
+  
+  // Password show/hide states
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   // Get API URL from env with fallback
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -41,12 +47,28 @@ export default function OrganizerProfile() {
         );
         
         setEmail(data.email);
-        setForm(f => ({
-          ...f,
-          name: data.name || "",
-          phone: data.phone || "",
-          department: data.department || "",
-        }));
+        
+        // Check if department is from predefined list or custom (exactly from StudentProfile)
+        const predefinedDepartments = ["cs", "math", "hssc1", "hssc2", "10", "9", "8", "7", "6", "5"];
+        if (data.department && !predefinedDepartments.includes(data.department)) {
+          setShowOtherDepartment(true);
+          setOtherDepartmentValue(data.department);
+          setForm({
+            name: data.name || "",
+            phone: data.phone || "",
+            department: "other",
+            password: "",
+            confirmPassword: ""
+          });
+        } else {
+          setForm({
+            name: data.name || "",
+            phone: data.phone || "",
+            department: data.department || "",
+            password: "",
+            confirmPassword: ""
+          });
+        }
       } catch (err) {
         console.error("Profile fetch error:", err);
         if (err.response?.status === 401) {
@@ -63,24 +85,55 @@ export default function OrganizerProfile() {
     fetchProfile();
   }, [API_URL]);
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    
+    setForm({ ...form, [name]: value });
+
+    // Apply logic for department visibility (exactly from StudentProfile)
+    if (name === "department") {
+      if (value === "other") {
+        setShowOtherDepartment(true);
+      } else {
+        setShowOtherDepartment(false);
+        setOtherDepartmentValue("");
+      }
+    }
+  };
+
+  const handleOtherDepartmentChange = (e) => {
+    setOtherDepartmentValue(e.target.value);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Password validation
     if (form.password && form.password !== form.confirmPassword) {
       setMsg({ text: "Passwords do not match!", error: true });
+      setTimeout(() => setMsg({ text: "", error: false }), 3000);
+      return;
+    }
+
+    if (form.password && form.password.length < 6) {
+      setMsg({ text: "Password must be at least 6 characters!", error: true });
       setTimeout(() => setMsg({ text: "", error: false }), 3000);
       return;
     }
     
     try {
       const token = localStorage.getItem("token");
+      
+      // Determine final department value (exactly from StudentProfile)
+      let finalDepartment = form.department;
+      if (form.department === "other") {
+        finalDepartment = otherDepartmentValue;
+      }
+      
       const payload = {
         name: form.name,
         phone: form.phone,
-        department: form.department,
+        department: finalDepartment,
       };
       if (form.password) payload.password = form.password;
 
@@ -98,6 +151,8 @@ export default function OrganizerProfile() {
       setMsg({ text: "Profile updated successfully!", error: false });
       setForm(f => ({ ...f, password: "", confirmPassword: "" }));
       setShowPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmNewPassword(false);
     } catch (err) {
       setMsg({ text: err.response?.data?.message || "Update failed", error: true });
     }
@@ -163,7 +218,7 @@ export default function OrganizerProfile() {
                 </div>
                 <div className="text-center">
                   <p className="font-medium text-gray-800">{form.name || "Organizer"}</p>
-                  <p className="text-sm text-gray-500">Organizer</p>
+                  <p className="text-sm text-gray-500">Organizer Account</p>
                 </div>
               </div>
 
@@ -209,22 +264,51 @@ export default function OrganizerProfile() {
                   />
                 </div>
 
-                {/* Department */}
+                {/* Department - Dropdown with Other option (exactly from StudentProfile) */}
                 <div>
                   <label className="font-bold text-gray-700">Department</label>
-                  <input
-                    type="text"
+                  <select
                     name="department"
                     value={form.department}
                     onChange={handleChange}
-                    placeholder="e.g., Computer Science"
                     className="w-full mt-2 px-4 py-3 rounded-xl border-2 border-gray-300 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition"
-                  />
+                    required
+                  >
+                    <option value="">Select Department</option>
+                    <option value="cs">Computer Science</option>
+                    <option value="math">Mathematics</option>
+                    <option value="hssc1">HSSC I</option>
+                    <option value="hssc2">HSSC II</option>
+                    <option value="10">10 Grade</option>
+                    <option value="9">9 Grade</option>
+                    <option value="8">8 Grade</option>
+                    <option value="7">7 Grade</option>
+                    <option value="6">6 Grade</option>
+                    <option value="5">5 Grade</option>
+                    <option value="other">Other Department</option>
+                  </select>
                 </div>
 
               </div>
 
-              {/* Password Change Section */}
+              {/* Other Department Text Input (exactly from StudentProfile) */}
+              {showOtherDepartment && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="font-bold text-gray-700">Specify Department</label>
+                    <input
+                      type="text"
+                      value={otherDepartmentValue}
+                      onChange={handleOtherDepartmentChange}
+                      placeholder="Enter your department name"
+                      className="w-full mt-2 px-4 py-3 rounded-xl border-2 border-gray-300 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Password Change Section with Show/Hide */}
               <div className="space-y-4 pt-4 border-t border-gray-200">
                 <button
                   type="button"
@@ -237,28 +321,49 @@ export default function OrganizerProfile() {
 
                 {showPassword && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-fadeIn">
+                    {/* New Password with Show/Hide */}
                     <div>
                       <label className="font-bold text-gray-700 text-sm">New Password</label>
-                      <input
-                        type="password"
-                        name="password"
-                        value={form.password}
-                        onChange={handleChange}
-                        placeholder="Enter new password"
-                        className="w-full mt-2 px-4 py-3 rounded-xl border-2 border-gray-300 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          name="password"
+                          value={form.password}
+                          onChange={handleChange}
+                          placeholder="Enter new password"
+                          className="w-full mt-2 px-4 py-3 rounded-xl border-2 border-gray-300 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition pr-12"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#8b4fa2] transition"
+                        >
+                          {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                      </div>
                       <p className="text-xs text-gray-400 mt-1">Minimum 6 characters</p>
                     </div>
+                    
+                    {/* Confirm Password with Show/Hide */}
                     <div>
                       <label className="font-bold text-gray-700 text-sm">Confirm Password</label>
-                      <input
-                        type="password"
-                        name="confirmPassword"
-                        value={form.confirmPassword}
-                        onChange={handleChange}
-                        placeholder="Confirm new password"
-                        className="w-full mt-2 px-4 py-3 rounded-xl border-2 border-gray-300 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showConfirmNewPassword ? "text" : "password"}
+                          name="confirmPassword"
+                          value={form.confirmPassword}
+                          onChange={handleChange}
+                          placeholder="Confirm new password"
+                          className="w-full mt-2 px-4 py-3 rounded-xl border-2 border-gray-300 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition pr-12"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#8b4fa2] transition"
+                        >
+                          {showConfirmNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -271,6 +376,8 @@ export default function OrganizerProfile() {
                   onClick={() => {
                     setForm(f => ({ ...f, password: "", confirmPassword: "" }));
                     setShowPassword(false);
+                    setShowNewPassword(false);
+                    setShowConfirmNewPassword(false);
                   }}
                   className="px-6 py-3 border border-gray-300 rounded-xl font-semibold text-gray-600 hover:bg-gray-100 hover:border-gray-400 transition"
                 >

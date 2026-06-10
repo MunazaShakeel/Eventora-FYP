@@ -2,11 +2,13 @@ import React, { useEffect, useState } from "react";
 import StudentSidebar from "../../components/StudentSidebar";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const API = "http://localhost:5000";
 
 const MyRegistrations = () => {
 const { token } = useAuth();
+const navigate = useNavigate();
 
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -386,6 +388,18 @@ const { token } = useAuth();
                               Feedback
                             </button>
                           )}
+                           
+                          {/* View Tasks Button - only for volunteers */}
+{isVolunteer && (
+  <button
+    onClick={() => navigate("/student/tasks")}
+    className="flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-xl transition"
+    style={{ background: "#edfafa", color: "#0d9488" }}
+  >
+    <span className="material-symbols-outlined text-[14px]">task_alt</span>
+    My Tasks
+  </button>
+)}
 
                           {/* Cancel Button */}
                           {canCancel && (

@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../../../components/Navbar";
+import { Eye, EyeOff } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";  // ✅ ADD
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const OrganizerRegister = () => {
   const navigate = useNavigate();
@@ -18,7 +19,14 @@ const OrganizerRegister = () => {
   });
 
   const [error, setError] = useState("");
+  const [showOtherDepartment, setShowOtherDepartment] = useState(false);
+  const [otherDepartmentValue, setOtherDepartmentValue] = useState("");
+  
+  // Password show/hide states
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Departments list without "other" - we'll add it separately
   const departments = [
     { value: "", label: "Select Department" },
     { value: "cs", label: "Computer Science" },
@@ -34,33 +42,53 @@ const OrganizerRegister = () => {
   ];
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    setFormData({ ...formData, [name]: value });
+
+    // Apply logic for department (exactly from profile page)
+    if (name === "department") {
+      if (value === "other") {
+        setShowOtherDepartment(true);
+      } else {
+        setShowOtherDepartment(false);
+        setOtherDepartmentValue("");
+      }
+    }
+  };
+
+  const handleOtherDepartmentChange = (e) => {
+    setOtherDepartmentValue(e.target.value);
   };
 
   const validate = () => {
     const { name, email, phone, department, password, confirmPassword } = formData;
 
-    // Name — only letters and spaces
+    // Name validation
     if (!/^[a-zA-Z\s]{3,}$/.test(name.trim())) {
       return "Name must be at least 3 characters and contain only letters.";
     }
 
-    // Email
+    // Email validation
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return "Please enter a valid email address.";
     }
 
-    // Phone — exactly 11 digits, starts with 03
+    // Phone validation
     if (!/^03[0-9]{9}$/.test(phone)) {
       return "Phone must be 11 digits and start with 03 (e.g. 03001234567).";
     }
 
-    // Department
-    if (!department) {
+    // Department validation with "other" support
+    if (department === "other") {
+      if (!otherDepartmentValue.trim()) {
+        return "Please specify your department.";
+      }
+    } else if (!department) {
       return "Please select a department.";
     }
 
-    // Password — min 8 chars, 1 uppercase, 1 number
+    // Password validation
     if (!/^(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)) {
       return "Password must be at least 8 characters, include 1 uppercase letter and 1 number.";
     }
@@ -81,15 +109,20 @@ const OrganizerRegister = () => {
     if (validationError) return setError(validationError);
 
     try {
+      // Determine final department value (exactly from profile page)
+      let finalDepartment = formData.department;
+      if (formData.department === "other") {
+        finalDepartment = otherDepartmentValue;
+      }
+
       await axios.post(`${API_URL}/organizers/register`, {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
-        department: formData.department,
+        department: finalDepartment,
         password: formData.password
       });
 
-   
       navigate("/login-organizer");
     } catch (err) {
       setError(err?.response?.data?.message || "Registration failed");
@@ -105,7 +138,6 @@ const OrganizerRegister = () => {
 
           {/* LEFT SIDE — SVG Illustration */}
           <div className="hidden lg:flex w-1/2 relative bg-linear-to-br from-[#90e3f0] to-[#8b4fa2] flex-col items-center justify-center p-10">
-
             <svg viewBox="0 0 400 380" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-xs mb-8">
               <circle cx="200" cy="180" r="150" fill="rgba(255,255,255,0.08)" />
               <circle cx="200" cy="180" r="110" fill="rgba(255,255,255,0.08)" />
@@ -173,67 +205,168 @@ const OrganizerRegister = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
 
-              {/* Name */}
+              {/* Full Name */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">Full Name</label>
-                <input type="text" name="name" placeholder="Enter Full Name" onChange={handleChange}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" required />
+                <label className="block mb-2 font-bold text-gray-700">
+                  Full Name *
+                </label>
+                <input 
+                  type="text" 
+                  name="name" 
+                  placeholder="Enter Full Name" 
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" 
+                  required 
+                />
               </div>
 
               {/* Email */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">Email</label>
-                <input type="email" name="email" placeholder="Enter Email" onChange={handleChange}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" required />
+                <label className="block mb-2 font-bold text-gray-700">
+                  Email *
+                </label>
+                <input 
+                  type="email" 
+                  name="email" 
+                  placeholder="Enter Email" 
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" 
+                  required 
+                />
               </div>
 
               {/* Phone */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">Phone</label>
-                <input type="text" name="phone" placeholder="e.g. 03001234567" onChange={handleChange}
+                <label className="block mb-2 font-bold text-gray-700">
+                  Phone *
+                </label>
+                <input 
+                  type="text" 
+                  name="phone" 
+                  placeholder="e.g. 03001234567" 
+                  value={formData.phone}
+                  onChange={handleChange}
                   maxLength={11}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" required />
+                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" 
+                  required 
+                />
               </div>
 
-              {/* Department Dropdown */}
+              {/* Department Dropdown with Other option */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">Department</label>
-                <select name="department" onChange={handleChange}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" required>
+                <label className="block mb-2 font-bold text-gray-700">
+                  Department *
+                </label>
+                <select 
+                  name="department" 
+                  value={formData.department}
+                  onChange={handleChange}
+                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" 
+                  required
+                >
                   {departments.map((d) => (
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
+                  <option value="other">Other Department</option>
                 </select>
               </div>
 
-              {/* Password */}
+              {/* Other Department Text Input - Exactly from profile page */}
+              {showOtherDepartment && (
+                <div>
+                  <label className="block mb-2 font-bold text-gray-700">
+                    Specify Department *
+                  </label>
+                  <input
+                    type="text"
+                    value={otherDepartmentValue}
+                    onChange={handleOtherDepartmentChange}
+                    placeholder="Enter your department name"
+                    className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition"
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Password with Show/Hide */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">Password</label>
-                <input type="password" name="password" placeholder="Min 8 chars, 1 uppercase, 1 number" onChange={handleChange}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" required />
+                <label className="block mb-2 font-bold text-gray-700">
+                  Password *
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    name="password" 
+                    placeholder="Min 8 chars, 1 uppercase, 1 number" 
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-12" 
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#8b4fa2] transition"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Minimum 8 characters, 1 uppercase, 1 number</p>
               </div>
 
-              {/* Confirm Password */}
+              {/* Confirm Password with Show/Hide */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">Confirm Password</label>
-                <input type="password" name="confirmPassword" placeholder="Re-enter Password" onChange={handleChange}
-                  className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition ${error ? "border-red-400" : ""}`}
-                  required />
+                <label className="block mb-2 font-bold text-gray-700">
+                  Confirm Password *
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showConfirmPassword ? "text" : "password"} 
+                    name="confirmPassword" 
+                    placeholder="Re-enter Password" 
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-12 ${
+                      error && error.includes("Passwords") ? "border-red-400" : ""
+                    }`}
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#8b4fa2] transition"
+                  >
+                    {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
 
-              {error && <p className="text-red-500 text-sm font-semibold">{error}</p>}
+              {/* Error Message */}
+              {error && (
+                <p className="text-red-500 text-sm font-semibold bg-red-50 p-3 rounded-xl">
+                  {error}
+                </p>
+              )}
 
-              <button type="submit"
-                className="w-full bg-[#8b4fa2] hover:bg-[#724286] text-white py-4 rounded-xl font-bold transition duration-300">
+              {/* Submit Button */}
+              <button 
+                type="submit"
+                className="w-full bg-[#8b4fa2] hover:bg-[#724286] text-white py-4 rounded-xl font-bold transition duration-300 transform hover:scale-105 active:scale-95 shadow-lg"
+              >
                 Create Account
               </button>
             </form>
 
+            {/* Login Link */}
             <div className="text-center pt-6">
               <p className="text-gray-500 text-sm">
                 Already have an account?
-                <span onClick={() => navigate("/login-organizer")}
-                  className="text-[#8b4fa2] font-bold ml-1 cursor-pointer hover:underline">
+                <span 
+                  onClick={() => navigate("/login-organizer")}
+                  className="text-[#8b4fa2] font-bold ml-1 cursor-pointer hover:underline"
+                >
                   Login here
                 </span>
               </p>

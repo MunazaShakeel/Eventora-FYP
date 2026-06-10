@@ -27,6 +27,9 @@ import OrganizerFeedback from "./pages/Organizer/OrganizerFeedback";
 import OrganizerCertificates from "./pages/Organizer/OrganizerCertificates";
 import OrganizerProfile from "./pages/Organizer/OrganizerProfile";
 import StudentProfile from "./pages/Student/StudentProfile";
+import StudentCertificates from "./pages/Student/StudentCertificates";
+import VerifyCertificate from "./pages/VerifyCertificate";
+import StudentTasks from "./pages/Student/StudentTasks";
 
 
 function App() {
@@ -59,6 +62,9 @@ function App() {
       <Route path="/student/my-registrations" element={<MyRegistrations />} />
       <Route path="/student/gallery" element={<StudentGallery />} />
       <Route path="/student/profile" element={<StudentProfile />} />
+      <Route path="/student/certificates" element={<StudentCertificates />} />
+      <Route path="/verify/:certificateId" element={<VerifyCertificate />} />
+      <Route path="/student/tasks" element={<StudentTasks />} />
 
 
 

@@ -18,6 +18,10 @@ router.get('/my', authMiddleware, roleMiddleware('Student', 'Volunteer'), certif
 // ✅ DOWNLOAD CERTIFICATE (NEW)
 router.get('/download/:id', authMiddleware, certificateController.downloadCertificate);
 
+// ✅ DELETE CERTIFICATE - New Route
+router.delete('/:id', authMiddleware, roleMiddleware('Admin', 'Organizer'), certificateController.deleteCertificate);
+
+
 // Verify certificate (public)
 router.get('/verify/:certificate_id', certificateController.verifyCertificate);
 

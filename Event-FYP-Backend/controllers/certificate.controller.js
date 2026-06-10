@@ -8,13 +8,12 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-// ------------------ ISSUE CERTIFICATE (with organizer check) ------------------
+// ------------------ ISSUE CERTIFICATE ------------------
 exports.issueCertificate = async (req, res) => {
     try {
         const { student_id, event_id, certificate_type = 'Participation' } = req.body;
         const user = req.user;
 
-        // CHECK: Organizer can only issue certificates for their own events
         if (user.role === 'Organizer') {
             const event = await Event.findOne({ 
                 _id: event_id, 
@@ -29,7 +28,6 @@ exports.issueCertificate = async (req, res) => {
             }
         }
 
-        // Check attendance
         const registration = await Registration.findOne({ student_id, event_id });
         if (!registration || registration.attendance_status !== 'Present') {
             return res.status(400).json({
@@ -38,7 +36,6 @@ exports.issueCertificate = async (req, res) => {
             });
         }
 
-        // Prevent duplicate
         const existingCertificate = await Certificate.findOne({ student_id, event_id });
         if (existingCertificate) {
             return res.status(400).json({ success: false, message: 'Certificate already issued' });
@@ -47,11 +44,9 @@ exports.issueCertificate = async (req, res) => {
         const student = await Student.findById(student_id);
         const event = await Event.findById(event_id);
 
-        // Generate QR for certificate verification
         const qrData = `CERT-${student._id}-${event._id}`;
         const qrCode = await generateQR(qrData);
 
-        // Generate PDF certificate
         const pdfPath = await exports.generateCertificatePDF({
             studentName: student.name,
             studentReg: student.registration_no || student._id.toString(),
@@ -59,7 +54,8 @@ exports.issueCertificate = async (req, res) => {
             eventDate: event.start_date,
             certificateType: certificate_type,
             issueDate: new Date(),
-            qrCode
+            qrCode,
+            eventVenue: event.venue || 'College Campus'
         });
 
         const certificate = await Certificate.create({
@@ -87,26 +83,23 @@ exports.getCertificatesByStudent = async (req, res) => {
     try {
         const student_id = req.user.id;
         const certificates = await Certificate.find({ student_id })
-            .populate('event_id', 'title start_date end_date venue');
+            .populate('event_id', 'title start_date end_date venue')
+            .populate('student_id', 'name email');
 
         res.status(200).json({ success: true, data: certificates });
-
     } catch (error) {
         res.status(500).json({ success: false, message: 'Error fetching certificates', error: error.message });
     }
 };
 
-// ------------------ GET ALL CERTIFICATES (ADMIN sees all, ORGANIZER sees only their events) ------------------
+// ------------------ GET ALL CERTIFICATES ------------------
 exports.getAllCertificates = async (req, res) => {
     try {
         const user = req.user;
         let query = {};
         
         if (user.role === 'Organizer') {
-            const organizerEvents = await Event.find({ 
-                organizer_id: user.id 
-            }).select('_id');
-            
+            const organizerEvents = await Event.find({ organizer_id: user.id }).select('_id');
             const eventIds = organizerEvents.map(event => event._id);
             query.event_id = { $in: eventIds };
         }
@@ -117,7 +110,7 @@ exports.getAllCertificates = async (req, res) => {
         
         const certificates = await Certificate.find(query)
             .populate('student_id', 'name email')
-            .populate('event_id', 'title start_date end_date')
+            .populate('event_id', 'title start_date end_date venue')
             .sort({ issued_date: -1 });
 
         res.status(200).json({ 
@@ -125,7 +118,6 @@ exports.getAllCertificates = async (req, res) => {
             count: certificates.length,
             data: certificates 
         });
-
     } catch (error) {
         console.error('Error in getAllCertificates:', error);
         res.status(500).json({ 
@@ -140,7 +132,6 @@ exports.getAllCertificates = async (req, res) => {
 exports.getOrganizerCertificates = async (req, res) => {
     try {
         const userId = req.user.id;
-        
         const myEvents = await Event.find({ organizer_id: userId }).select('_id');
         const eventIds = myEvents.map(event => event._id);
         
@@ -153,19 +144,16 @@ exports.getOrganizerCertificates = async (req, res) => {
             });
         }
         
-        const certificates = await Certificate.find({ 
-            event_id: { $in: eventIds } 
-        })
-        .populate('student_id', 'name email')
-        .populate('event_id', 'title start_date end_date venue')
-        .sort({ issued_date: -1 });
+        const certificates = await Certificate.find({ event_id: { $in: eventIds } })
+            .populate('student_id', 'name email')
+            .populate('event_id', 'title start_date end_date venue')
+            .sort({ issued_date: -1 });
         
         res.status(200).json({
             success: true,
             count: certificates.length,
             data: certificates
         });
-        
     } catch (error) {
         console.error('Error in getOrganizerCertificates:', error);
         res.status(500).json({
@@ -176,12 +164,11 @@ exports.getOrganizerCertificates = async (req, res) => {
     }
 };
 
-// ------------------ ✅ NEW: DOWNLOAD CERTIFICATE ------------------
+// ------------------ DOWNLOAD CERTIFICATE ------------------
 exports.downloadCertificate = async (req, res) => {
     try {
         const { id } = req.params;
         
-        // Find certificate with populated data
         const certificate = await Certificate.findById(id)
             .populate('student_id', 'name email registration_no')
             .populate('event_id', 'title start_date end_date venue');
@@ -190,7 +177,6 @@ exports.downloadCertificate = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Certificate not found' });
         }
         
-        // Check authorization
         const isAdmin = req.user.role === 'Admin';
         const isOrganizer = req.user.role === 'Organizer';
         const isOwner = certificate.student_id._id.toString() === req.user.id?.toString();
@@ -199,24 +185,83 @@ exports.downloadCertificate = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized to download this certificate' });
         }
         
-        // If certificate has stored PDF file, serve it
         if (certificate.certificate_url && fs.existsSync(certificate.certificate_url)) {
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename=certificate_${certificate.student_id.name.replace(/\s/g, '_')}.pdf`);
             return res.sendFile(certificate.certificate_url);
         }
         
-        // Otherwise generate HTML certificate
         const htmlContent = generateCertificateHTML(certificate);
-        
         res.setHeader('Content-Type', 'text/html');
         res.setHeader('Content-Disposition', `attachment; filename=certificate_${certificate.student_id.name.replace(/\s/g, '_')}.html`);
-        
         res.send(htmlContent);
         
     } catch (error) {
         console.error('Download certificate error:', error);
         res.status(500).json({ success: false, message: 'Failed to download certificate', error: error.message });
+    }
+};
+
+// ------------------ ✅ DELETE CERTIFICATE (FIXED) ------------------
+exports.deleteCertificate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = req.user;
+        
+        console.log('Delete request for certificate:', id);
+        console.log('User:', user.id, user.role);
+        
+        // Find certificate with populated data
+        const certificate = await Certificate.findById(id)
+            .populate('event_id', 'organizer_id title');
+        
+        if (!certificate) {
+            return res.status(404).json({
+                success: false,
+                message: 'Certificate not found'
+            });
+        }
+        
+        // Check authorization
+        const isAdmin = user.role === 'Admin';
+        const isOrganizer = certificate.event_id?.organizer_id?.toString() === user.id?.toString();
+        
+        console.log('Is Admin:', isAdmin);
+        console.log('Is Organizer:', isOrganizer);
+        console.log('Certificate organizer:', certificate.event_id?.organizer_id?.toString());
+        
+        if (!isAdmin && !isOrganizer) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to delete this certificate'
+            });
+        }
+        
+        // Delete the certificate file if exists
+        if (certificate.certificate_url && fs.existsSync(certificate.certificate_url)) {
+            try {
+                fs.unlinkSync(certificate.certificate_url);
+                console.log('Certificate file deleted:', certificate.certificate_url);
+            } catch (fileError) {
+                console.error('Error deleting certificate file:', fileError);
+            }
+        }
+        
+        // Delete certificate from database
+        await Certificate.findByIdAndDelete(id);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Certificate deleted successfully'
+        });
+        
+    } catch (error) {
+        console.error('Delete certificate error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting certificate',
+            error: error.message
+        });
     }
 };
 
@@ -226,14 +271,13 @@ exports.verifyCertificate = async (req, res) => {
         const { certificate_id } = req.params;
         const certificate = await Certificate.findById(certificate_id)
             .populate('student_id', 'name email')
-            .populate('event_id', 'title start_date end_date');
+            .populate('event_id', 'title start_date end_date venue');
 
         if (!certificate) {
             return res.status(404).json({ success: false, message: 'Invalid certificate' });
         }
 
         res.status(200).json({ success: true, message: 'Certificate is valid', data: certificate });
-
     } catch (error) {
         res.status(500).json({ success: false, message: 'Error verifying certificate', error: error.message });
     }
@@ -247,7 +291,8 @@ exports.generateCertificatePDF = ({
     eventDate,
     certificateType,
     issueDate,
-    qrCode
+    qrCode,
+    eventVenue
 }) => {
     return new Promise((resolve, reject) => {
         try {
@@ -268,134 +313,62 @@ exports.generateCertificatePDF = ({
             const writeStream = fs.createWriteStream(filePath);
             doc.pipe(writeStream);
 
-            // Border
-            doc
-                .rect(20, 20, 800, 550)
-                .lineWidth(3)
-                .stroke('#8b4fa2');
+            // Beautiful PDF Design (No Signatures)
+            const pageWidth = doc.page.width;
+            const pageHeight = doc.page.height;
+
+            // Background
+            doc.rect(0, 0, pageWidth, pageHeight).fill('#ffffff');
+            
+            // Decorative top bar
+            doc.rect(0, 0, pageWidth, 12).fill('#8b4fa2');
+            doc.rect(0, pageHeight - 12, pageWidth, 12).fill('#8b4fa2');
+            
+            // Borders
+            doc.rect(25, 25, pageWidth - 50, pageHeight - 50).lineWidth(3).stroke('#8b4fa2');
+            doc.rect(35, 35, pageWidth - 70, pageHeight - 70).lineWidth(1).stroke('#4ECDC4');
 
             // Title
-            doc
-                .fontSize(32)
-                .fillColor('#8b4fa2')
-                .text('Certificate of Participation', {
-                    align: 'center'
-                });
-
+            doc.fontSize(32).font('Helvetica-Bold').fillColor('#8b4fa2')
+               .text(`CERTIFICATE OF ${certificateType.toUpperCase()}`, { align: 'center' });
+            
+            doc.moveDown(0.5);
+            doc.fontSize(14).fillColor('#6b7280').text('Official Recognition of Achievement', { align: 'center' });
             doc.moveDown(1.5);
 
-            // Body Text
-            doc
-                .fontSize(18)
-                .fillColor('#333')
-                .text('This is proudly presented to', {
-                    align: 'center'
-                });
-
-            doc.moveDown(1);
-
             // Student Name
-            doc
-                .fontSize(28)
-                .fillColor('#4ECDC4')
-                .font('Helvetica-Bold')
-                .text(studentName, {
-                    align: 'center'
-                });
-
+            doc.fontSize(16).fillColor('#6b7280').text('This certificate is proudly presented to', { align: 'center' });
+            doc.moveDown(1);
+            doc.fontSize(46).font('Helvetica-Bold').fillColor('#4ECDC4').text(studentName, { align: 'center' });
             doc.moveDown(0.5);
-
+            
             // Registration ID
-            doc
-                .fontSize(14)
-                .font('Helvetica')
-                .fillColor('#666')
-                .text(`Registration ID: ${studentReg}`, {
-                    align: 'center'
-                });
+            doc.fontSize(11).fillColor('#8b4fa2').text(`Registration ID: ${studentReg}`, { align: 'center' });
+            doc.moveDown(1.5);
 
-            doc.moveDown(1);
-
-            // Event Info
-            doc
-                .fontSize(18)
-                .fillColor('#333')
-                .text(
-                    `For ${certificateType.toLowerCase()} in`,
-                    { align: 'center' }
-                );
-
-            doc.moveDown(0.5);
-
-            doc
-                .fontSize(22)
-                .font('Helvetica-Bold')
-                .fillColor('#8b4fa2')
-                .text(eventTitle, {
-                    align: 'center'
-                });
-
-            doc.moveDown(1);
-
-            doc
-                .fontSize(14)
-                .font('Helvetica')
-                .fillColor('#666')
-                .text(
-                    `Event Date: ${new Date(eventDate).toLocaleDateString()}`,
-                    { align: 'center' }
-                );
-
+            // Event Details
+            doc.fontSize(16).fillColor('#6b7280').text(`for successfully completing the ${certificateType} program in`, { align: 'center' });
+            doc.moveDown(0.8);
+            doc.fontSize(26).font('Helvetica-Bold').fillColor('#8b4fa2').text(eventTitle, { align: 'center' });
+            doc.moveDown(0.8);
+            doc.fontSize(12).fillColor('#9ca3af').text(`Date: ${new Date(eventDate).toLocaleDateString()} | Venue: ${eventVenue}`, { align: 'center' });
             doc.moveDown(2);
 
-            // Signature Section
-            doc
-                .fontSize(14)
-                .fillColor('#333')
-                .text('______________________', 120, 470);
-
-            doc.text('Event Organizer', 150, 490);
-
-            doc
-                .text('______________________', 520, 470);
-
-            doc.text('Authorized Signature', 540, 490);
-
-            // Issue Date
-            doc
-                .fontSize(12)
-                .fillColor('#666')
-                .text(
-                    `Issued on: ${new Date(issueDate).toLocaleDateString()}`,
-                    350,
-                    520,
-                    { align: 'center' }
-                );
+            // Issue Date (No signatures)
+            doc.fontSize(10).fillColor('#9ca3af').text(`Issued on: ${new Date(issueDate).toLocaleDateString()}`, { align: 'center' });
 
             // QR Code
             if (qrCode) {
                 const base64Data = qrCode.replace(/^data:image\/png;base64,/, '');
                 const qrBuffer = Buffer.from(base64Data, 'base64');
-
-                doc.image(qrBuffer, 700, 430, {
-                    width: 90
-                });
-
-                doc
-                    .fontSize(8)
-                    .fillColor('#999')
-                    .text('Scan to verify', 705, 525);
+                doc.image(qrBuffer, pageWidth - 120, pageHeight - 120, { width: 80 });
+                
             }
 
             doc.end();
 
-            writeStream.on('finish', () => {
-                resolve(filePath);
-            });
-
-            writeStream.on('error', (error) => {
-                reject(error);
-            });
+            writeStream.on('finish', () => resolve(filePath));
+            writeStream.on('error', (error) => reject(error));
 
         } catch (error) {
             reject(error);
@@ -407,18 +380,15 @@ exports.generateCertificatePDF = ({
 const generateCertificateHTML = (certificate) => {
     const studentName = certificate.student_id?.name || 'Student';
     const eventTitle = certificate.event_id?.title || 'Event';
-    const eventDate = certificate.event_id?.start_date 
-        ? new Date(certificate.event_id.start_date).toLocaleDateString() 
-        : 'N/A';
+    const eventDate = certificate.event_id?.start_date ? new Date(certificate.event_id.start_date).toLocaleDateString() : 'N/A';
     const issuedDate = new Date(certificate.issued_date).toLocaleDateString();
-    const certificateId = certificate._id;
+    const eventVenue = certificate.event_id?.venue || 'College Campus';
     
     return `<!DOCTYPE html>
-    <html lang="en">
+    <html>
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Certificate of Participation - ${studentName}</title>
+        <title>Certificate - ${studentName}</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
@@ -433,40 +403,24 @@ const generateCertificateHTML = (certificate) => {
             .certificate {
                 width: 1000px;
                 background: white;
-                border-radius: 20px;
-                box-shadow: 0 30px 50px rgba(0,0,0,0.2);
+                border-radius: 30px;
+                box-shadow: 0 30px 60px rgba(0,0,0,0.3);
                 overflow: hidden;
             }
             .certificate-border {
                 border: 20px solid #8b4fa2;
-                border-radius: 20px;
-                margin: 10px;
-                padding: 40px;
+                border-radius: 25px;
+                margin: 15px;
+                padding: 45px;
+                background: white;
             }
-            .certificate-header { text-align: center; margin-bottom: 30px; }
-            .certificate-icon { font-size: 60px; margin-bottom: 10px; }
-            .certificate-title { font-size: 42px; color: #8b4fa2; letter-spacing: 4px; font-weight: bold; text-transform: uppercase; }
-            .certificate-subtitle { font-size: 18px; color: #666; border-top: 2px solid #8b4fa2; border-bottom: 2px solid #8b4fa2; display: inline-block; padding: 8px 30px; }
-            .certificate-body { text-align: center; margin: 40px 0; }
-            .presented-to { font-size: 18px; color: #555; margin-bottom: 15px; }
-            .student-name { font-size: 48px; color: #4ECDC4; font-weight: bold; margin: 20px 0; border-bottom: 3px dotted #8b4fa2; display: inline-block; padding-bottom: 10px; }
-            .for-text { font-size: 18px; color: #555; margin: 20px 0 10px; }
-            .event-title { font-size: 32px; color: #8b4fa2; font-weight: bold; margin: 15px 0; }
-            .event-details { font-size: 14px; color: #888; margin-top: 15px; }
-            .certificate-footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; }
-            .signature { display: flex; justify-content: space-between; margin: 30px 0 20px; }
-            .signature-line { text-align: center; }
-            .signature-line .line { width: 200px; border-top: 2px solid #333; margin-bottom: 8px; }
-            .signature-line .name { font-size: 14px; font-weight: bold; }
-            .signature-line .title { font-size: 12px; color: #888; }
-            .certificate-id { font-size: 11px; color: #aaa; margin-top: 20px; text-align: center; }
-            .verification { background: #f5f5f5; padding: 15px; margin-top: 20px; border-radius: 10px; text-align: center; }
-            .verification p { font-size: 12px; color: #666; }
-            @media print {
-                body { background: white; padding: 0; }
-                .certificate { box-shadow: none; width: 100%; }
-                .verification { display: none; }
-            }
+            .certificate-header { text-align: center; margin-bottom: 35px; }
+            .certificate-icon { font-size: 65px; margin-bottom: 10px; }
+            .certificate-title { font-size: 38px; background: linear-gradient(135deg, #8b4fa2, #4ECDC4); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: bold; }
+            .student-name { font-size: 52px; background: linear-gradient(135deg, #4ECDC4, #8b4fa2); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: bold; margin: 25px 0; }
+            .event-title { font-size: 28px; color: #8b4fa2; font-weight: bold; margin: 20px 0; }
+            .event-details { font-size: 14px; color: #9ca3af; margin-top: 15px; }
+            .issue-date { font-size: 12px; color: #9ca3af; margin-top: 30px; padding-top: 20px; border-top: 2px solid #f3e8ff; }
         </style>
     </head>
     <body>
@@ -474,24 +428,17 @@ const generateCertificateHTML = (certificate) => {
             <div class="certificate-border">
                 <div class="certificate-header">
                     <div class="certificate-icon">🏆</div>
-                    <h1 class="certificate-title">Certificate of Participation</h1>
-                    <div class="certificate-subtitle">Proudly Presents</div>
+                    <h1 class="certificate-title">Certificate of ${certificate.certificate_type}</h1>
                 </div>
-                <div class="certificate-body">
-                    <p class="presented-to">This certificate is awarded to</p>
+                <div class="certificate-body" style="text-align: center;">
+                    <p style="color: #6b7280;">This certificate is proudly presented to</p>
                     <div class="student-name">${studentName}</div>
-                    <p class="for-text">for successfully participating in</p>
+                    <p style="color: #6b7280;">for successfully participating in</p>
                     <div class="event-title">${eventTitle}</div>
-                    <div class="event-details">Held on: ${eventDate}</div>
+                    <div class="event-details">📅 ${eventDate} &nbsp;|&nbsp; 📍 ${eventVenue}</div>
                 </div>
-                <div class="certificate-footer">
-                    <div class="signature">
-                        <div class="signature-line"><div class="line"></div><div class="name">Event Coordinator</div><div class="title">College Event Management</div></div>
-                        <div class="signature-line"><div class="line"></div><div class="name">Issued Date</div><div class="title">${issuedDate}</div></div>
-                    </div>
-                </div>
-                <div class="certificate-id">Certificate ID: ${certificateId}</div>
-                <div class="verification"><p>🔗 Verify this certificate at: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${certificateId}</p></div>
+                <div class="issue-date" style="text-align: center;">Issued on: ${issuedDate}</div>
+                <div style="text-align: center; font-size: 10px; color: #d1d5db; margin-top: 15px;">Certificate ID: ${certificate._id}</div>
             </div>
         </div>
     </body>
