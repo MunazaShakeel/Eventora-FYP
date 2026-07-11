@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../../../components/Navbar";
 import campusBanner from "../../../assets/image1.jpg";
-import { Eye, EyeOff } from "lucide-react"; // Icons for show/hide password
+import { Eye, EyeOff } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -28,9 +28,36 @@ const Register = () => {
   // Password show/hide states
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Phone validation state
+  const [phoneError, setPhoneError] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Phone validation - only allow digits and max 11 characters
+    if (name === "phone") {
+      // Remove any non-digit characters
+      const cleanedValue = value.replace(/\D/g, '');
+      
+      // Only allow up to 11 digits
+      if (cleanedValue.length <= 11) {
+        setFormData((prev) => ({
+          ...prev,
+          [name]: cleanedValue
+        }));
+        
+        // Clear phone error if valid
+        if (cleanedValue.length === 11) {
+          setPhoneError("");
+        } else if (cleanedValue.length > 0 && cleanedValue.length < 11) {
+          setPhoneError("Phone number must be exactly 11 digits");
+        } else {
+          setPhoneError("");
+        }
+      }
+      return;
+    }
 
     setFormData((prev) => ({
       ...prev,
@@ -86,6 +113,12 @@ const Register = () => {
       return;
     }
 
+    // Phone validation - if provided, must be exactly 11 digits
+    if (formData.phone && formData.phone.length !== 11) {
+      setError("Phone number must be exactly 11 digits");
+      return;
+    }
+
     try {
       setError("");
 
@@ -111,6 +144,13 @@ const Register = () => {
       console.error("Server response:", err.response?.data);
       setError(err?.response?.data?.message || "Registration failed. Please check all fields.");
     }
+  };
+
+  // Format phone number for display (optional)
+  const formatPhoneDisplay = (phone) => {
+    if (!phone) return "";
+    // Can add formatting like 03XX-XXXXXXX if needed
+    return phone;
   };
 
   return (
@@ -180,7 +220,7 @@ const Register = () => {
                 />
               </div>
 
-              {/* Phone */}
+              {/* Phone with Validation */}
               <div>
                 <label className="block mb-2 font-bold text-gray-700">
                   Phone (Optional)
@@ -188,11 +228,28 @@ const Register = () => {
                 <input
                   type="tel"
                   name="phone"
-                  placeholder="Enter Phone Number"
+                  placeholder="Enter 11-digit Phone Number"
                   value={formData.phone}
                   onChange={handleChange}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition"
+                  className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition ${
+                    phoneError ? "border-red-400 focus:ring-red-400" : ""
+                  }`}
+                  maxLength={11}
                 />
+                {phoneError && (
+                  <p className="text-red-500 text-xs font-semibold mt-1">
+                    {phoneError}
+                  </p>
+                )}
+                {formData.phone && formData.phone.length === 11 && (
+                  <p className="text-green-500 text-xs font-semibold mt-1 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    Valid phone number
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Enter exactly 11 digits (e.g., 03331234567)
+                </p>
               </div>
 
               {/* Grade */}
