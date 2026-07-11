@@ -35,7 +35,7 @@ const Register = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Phone validation - only allow digits and max 11 characters
+    // Phone validation - Pakistan number format (03XXXXXXXXX)
     if (name === "phone") {
       // Remove any non-digit characters
       const cleanedValue = value.replace(/\D/g, '');
@@ -47,13 +47,18 @@ const Register = () => {
           [name]: cleanedValue
         }));
         
-        // Clear phone error if valid
-        if (cleanedValue.length === 11) {
+        // Validate Pakistan phone number
+        if (cleanedValue.length === 0) {
           setPhoneError("");
-        } else if (cleanedValue.length > 0 && cleanedValue.length < 11) {
+        } else if (cleanedValue.length < 11) {
           setPhoneError("Phone number must be exactly 11 digits");
-        } else {
-          setPhoneError("");
+        } else if (cleanedValue.length === 11) {
+          // Check if starts with 03
+          if (cleanedValue.startsWith('03')) {
+            setPhoneError("");
+          } else {
+            setPhoneError("Pakistani number must start with 03 (e.g., 03XXXXXXXXX)");
+          }
         }
       }
       return;
@@ -113,15 +118,22 @@ const Register = () => {
       return;
     }
 
-    // Phone validation - if provided, must be exactly 11 digits
-    if (formData.phone && formData.phone.length !== 11) {
-      setError("Phone number must be exactly 11 digits");
-      return;
+    // Phone validation - if provided, must be exactly 11 digits and start with 03
+    if (formData.phone) {
+      if (formData.phone.length !== 11) {
+        setError("Phone number must be exactly 11 digits");
+        return;
+      }
+      if (!formData.phone.startsWith('03')) {
+        setError("Pakistani number must start with 03 (e.g., 03XXXXXXXXX)");
+        return;
+      }
     }
 
     try {
       setError("");
 
+      // ✅ FIX: Send the actual grade value, not "other"
       let finalDepartment = formData.grade;
       if (formData.grade === "other") {
         finalDepartment = otherDepartmentValue;
@@ -132,6 +144,7 @@ const Register = () => {
         email: formData.email,
         password: formData.password,
         department: finalDepartment,
+        grade: finalDepartment, // Also send as grade for consistency
         semester: formData.semester ? Number(formData.semester) : null,
         phone: formData.phone || ""
       };
@@ -144,13 +157,6 @@ const Register = () => {
       console.error("Server response:", err.response?.data);
       setError(err?.response?.data?.message || "Registration failed. Please check all fields.");
     }
-  };
-
-  // Format phone number for display (optional)
-  const formatPhoneDisplay = (phone) => {
-    if (!phone) return "";
-    // Can add formatting like 03XX-XXXXXXX if needed
-    return phone;
   };
 
   return (
@@ -220,7 +226,7 @@ const Register = () => {
                 />
               </div>
 
-              {/* Phone with Validation */}
+              {/* Phone with Pakistan Validation */}
               <div>
                 <label className="block mb-2 font-bold text-gray-700">
                   Phone (Optional)
@@ -228,7 +234,7 @@ const Register = () => {
                 <input
                   type="tel"
                   name="phone"
-                  placeholder="Enter 11-digit Phone Number"
+                  placeholder="03XXXXXXXXX (11 digits)"
                   value={formData.phone}
                   onChange={handleChange}
                   className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] focus:border-[#8b4fa2] outline-none transition ${
@@ -241,14 +247,19 @@ const Register = () => {
                     {phoneError}
                   </p>
                 )}
-                {formData.phone && formData.phone.length === 11 && (
+                {formData.phone && formData.phone.length === 11 && formData.phone.startsWith('03') && (
                   <p className="text-green-500 text-xs font-semibold mt-1 flex items-center gap-1">
                     <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    Valid phone number
+                    Valid Pakistani number ✅
+                  </p>
+                )}
+                {formData.phone && formData.phone.length === 11 && !formData.phone.startsWith('03') && (
+                  <p className="text-red-500 text-xs font-semibold mt-1">
+                    ⚠️ Must start with 03
                   </p>
                 )}
                 <p className="text-xs text-gray-400 mt-1">
-                  Enter exactly 11 digits (e.g., 03331234567)
+                  Enter 11 digits starting with 03 (e.g., 03331234567)
                 </p>
               </div>
 
