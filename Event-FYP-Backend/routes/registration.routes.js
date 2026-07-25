@@ -18,4 +18,7 @@ router.get('/events/:event_id', authMiddleware, roleMiddleware('Organizer', 'Adm
 // Student's own registrations
 router.get('/my-registrations', authMiddleware, roleMiddleware('Student'), registrationController.getStudentRegistrations);
 
+// ✅ NEW: Get volunteers by event (Admin/Organizer)
+router.get('/event/:event_id/volunteers', authMiddleware, roleMiddleware('Admin', 'Organizer'), registrationController.getVolunteersByEvent);
+
 module.exports = router;

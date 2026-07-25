@@ -7,23 +7,16 @@ const { authMiddleware, roleMiddleware } = require('../middleware/auth.middlewar
 router.post('/register', organizerController.registerOrganizer);
 router.post('/login', organizerController.loginOrganizer);
 
-/* ============== PROTECTED ROUTES ================= */
-router.use(authMiddleware, roleMiddleware('Organizer'));
+/* ============== ORGANIZER-ONLY ROUTES ================= */
+router.get('/me', authMiddleware, roleMiddleware('Organizer'), organizerController.getProfile);
+router.put('/me', authMiddleware, roleMiddleware('Organizer'), organizerController.updateProfile);
+router.get('/dashboard/stats', authMiddleware, roleMiddleware('Organizer'), organizerController.getOrganizerDashboardStats);
+router.get('/my-events', authMiddleware, roleMiddleware('Organizer'), organizerController.getMyEvents);
 
-// Organizer profile
-router.get('/me', organizerController.getProfile);
-router.put('/me', organizerController.updateProfile);
-
-// Organizer dashboard
-router.get('/dashboard/stats', organizerController.getOrganizerDashboardStats);
-
-// Organizer's own events
-router.get('/my-events', organizerController.getMyEvents);
-
-// ⚠️ Dynamic routes LAST
-router.get('/', organizerController.getAllOrganizers);
-router.get('/:id', organizerController.getOrganizerById);
-router.put('/:id', organizerController.updateOrganizer);
-router.delete('/:id', organizerController.deleteOrganizer);
+/* ============== ADMIN-ONLY ROUTES ================= */
+router.get('/', authMiddleware, roleMiddleware('Admin'), organizerController.getAllOrganizers);
+router.get('/:id', authMiddleware, roleMiddleware('Admin'), organizerController.getOrganizerById);
+router.put('/:id', authMiddleware, roleMiddleware('Admin'), organizerController.updateOrganizer);
+router.delete('/:id', authMiddleware, roleMiddleware('Admin'), organizerController.deleteOrganizer);
 
 module.exports = router;

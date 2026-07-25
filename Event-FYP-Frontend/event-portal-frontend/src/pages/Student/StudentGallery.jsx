@@ -205,12 +205,7 @@ useEffect(() => {
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <button className="p-2 rounded-full text-gray-500 hover:bg-purple-50">
-                <span className="material-symbols-outlined">notifications</span>
-              </button>
-              <div className="w-8 h-8 rounded-full bg-linear-to-r from-purple-600 to-teal-400 flex items-center justify-center text-white font-bold text-sm shadow-md">S</div>
-            </div>
+           
           </header>
 
           {/* MAIN CONTENT */}

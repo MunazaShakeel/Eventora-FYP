@@ -30,6 +30,14 @@ import StudentProfile from "./pages/Student/StudentProfile";
 import StudentCertificates from "./pages/Student/StudentCertificates";
 import VerifyCertificate from "./pages/VerifyCertificate";
 import StudentTasks from "./pages/Student/StudentTasks";
+import ManageOrganizers from "./pages/Admin/ManageOrganizers";
+import AdminManageTasks from "./pages/Admin/AdminManageTasks";
+import ManageFeedback from "./pages/Admin/ManageFeedback";
+import ManageFeedbacks from "./pages/Admin/ManageFeedback.jsx";
+
+
+
+
 
 
 function App() {
@@ -84,6 +92,7 @@ function App() {
       <Route path="/organizer/feedback" element={<OrganizerFeedback />} />
       <Route path="/organizer/certificates" element={<OrganizerCertificates />} />
       <Route path="/organizer/profile" element={<OrganizerProfile />} />
+
     
 
 
@@ -93,7 +102,13 @@ function App() {
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/admin/events" element={<ManageEvents />} />
       <Route path="/admin/students" element={<ManageStudents />} />
+      <Route path="/admin/organizers" element={<ManageOrganizers />} />
       <Route path="/admin/gallery" element={<AdminGallery />} />
+      <Route path="/admin/manage-tasks" element={<AdminManageTasks />} />
+      <Route path="/admin/feedback" element={<ManageFeedbacks />} />
+   
+  
+
     </Routes>
   );
 }

@@ -5,10 +5,10 @@ import OrganizerSidebar from "../../components/OrganizerSidebar";
 import { useAuth } from "../../context/AuthContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Cell  // ← Add "Cell"
+  Tooltip, ResponsiveContainer
 } from "recharts";
 
-
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const useCounter = (target, duration = 1500, start = false) => {
   const [count, setCount] = useState(0);
@@ -90,7 +90,13 @@ const OrganizerDashboard = () => {
   const { user, token } = useAuth();
   const notifRef = useRef(null);
 
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState({
+    events: { totalEvents: 0, approvedEvents: 0, rejectedEvents: 0 },
+    registrations: { totalRegistrations: 0, presentCount: 0, absentCount: 0 },
+    tasks: { totalTasks: 0, completedTasks: 0, pendingTasks: 0 },
+    totalCertificates: 0,
+    topEvents: []
+  });
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [recentRegistrations, setRecentRegistrations] = useState([]);
   const [trends, setTrends] = useState([]);
@@ -123,34 +129,62 @@ const OrganizerDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ── Main Data Fetch ──
+  // ── Main Data Fetch (Safe API Calls) ──
   useEffect(() => {
     if (!token || !user) return;
+
     const fetchAll = async () => {
       try {
+        setLoading(true);
+        setError("");
         const headers = { Authorization: `Bearer ${token}` };
         const organizerId = user.id;
 
-        const [statsRes, upcomingRes, recentRes, trendsRes, profileRes] = await Promise.all([
-          axios.get("http://localhost:5000/api/organizer-dashboard/stats", { headers }),
-          axios.get("http://localhost:5000/api/organizer-dashboard/upcoming-events", { headers }),
-          axios.get("http://localhost:5000/api/organizer-dashboard/recent-registrations", { headers }),
-          axios.get("http://localhost:5000/api/organizer-dashboard/registration-trends", { headers }),
-          axios.get(`http://localhost:5000/api/organizers/${organizerId}`, { headers }),
+        // ✅ Safe API calls with fallback values
+        const safeFetch = async (url, fallback = null) => {
+          try {
+            const res = await axios.get(url, { headers });
+            return res.data;
+          } catch (err) {
+            console.warn(`⚠️ API failed: ${url}`, err.response?.status);
+            return fallback;
+          }
+        };
+
+        // Fetch all data in parallel
+        const [
+          statsData,
+          upcomingData,
+          recentData,
+          trendsData,
+          profileData
+        ] = await Promise.all([
+          safeFetch(`${API_URL}/api/organizer-dashboard/stats`, { 
+            events: { totalEvents: 0, approvedEvents: 0, rejectedEvents: 0 },
+            registrations: { totalRegistrations: 0, presentCount: 0, absentCount: 0 },
+            tasks: { totalTasks: 0, completedTasks: 0, pendingTasks: 0 },
+            totalCertificates: 0,
+            topEvents: []
+          }),
+          safeFetch(`${API_URL}/api/organizer-dashboard/upcoming-events`, { upcomingEvents: [] }),
+          safeFetch(`${API_URL}/api/organizer-dashboard/recent-registrations`, { recentRegistrations: [] }),
+          safeFetch(`${API_URL}/api/organizer-dashboard/registration-trends`, { trends: [] }),
+          safeFetch(`${API_URL}/api/organizers/${organizerId}`, { organizer: { name: "Organizer" } }),
         ]);
 
-        setStats(statsRes.data);
-        setUpcomingEvents(upcomingRes.data?.upcomingEvents || []);
-        setRecentRegistrations(recentRes.data?.recentRegistrations || []);
-        setTrends(trendsRes.data?.trends || []);
+        // Set states with safe fallbacks
+        setStats(statsData || { events: { totalEvents: 0, approvedEvents: 0, rejectedEvents: 0 }, registrations: { totalRegistrations: 0, presentCount: 0, absentCount: 0 }, tasks: { totalTasks: 0, completedTasks: 0, pendingTasks: 0 }, totalCertificates: 0, topEvents: [] });
+        setUpcomingEvents(upcomingData?.upcomingEvents || []);
+        setRecentRegistrations(recentData?.recentRegistrations || []);
+        setTrends(trendsData?.trends || []);
 
-        const profile = profileRes.data?.organizer || profileRes.data;
+        const profile = profileData?.organizer || profileData;
         if (profile?.name) setOrganizerName(profile.name);
 
         setTimeout(() => setAnimate(true), 200);
       } catch (err) {
-        console.error(err);
-        setError("Unable to load dashboard data. Please check your connection.");
+        console.error("Dashboard fetch error:", err);
+        setError("Unable to load dashboard data. Please refresh.");
       } finally {
         setLoading(false);
       }
@@ -164,25 +198,38 @@ const OrganizerDashboard = () => {
     const fetchNotifs = async () => {
       try {
         const headers = { Authorization: `Bearer ${token}` };
-        const [upcomingRes, regsRes] = await Promise.all([
-          axios.get("http://localhost:5000/api/organizer-dashboard/upcoming-events", { headers }),
-          axios.get("http://localhost:5000/api/organizer-dashboard/recent-registrations", { headers }),
-        ]);
         const notifs = [];
-        (upcomingRes.data?.upcomingEvents || []).slice(0, 3).forEach((ev) => {
-          notifs.push({
-            id: `ev-${ev._id}`, icon: "event", color: "#8b4fa2", bg: "#f5eefa",
-            message: `"${ev.title}" is coming up`,
-            time: ev.start_date ? new Date(ev.start_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "",
+
+        // Try fetching upcoming events
+        try {
+          const upcomingRes = await axios.get(`${API_URL}/api/organizer-dashboard/upcoming-events`, { headers });
+          (upcomingRes.data?.upcomingEvents || []).slice(0, 3).forEach((ev) => {
+            notifs.push({
+              id: `ev-${ev._id}`,
+              icon: "event",
+              color: "#8b4fa2",
+              bg: "#f5eefa",
+              message: `"${ev.title}" is coming up`,
+              time: ev.start_date ? new Date(ev.start_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "",
+            });
           });
-        });
-        (regsRes.data?.recentRegistrations || []).slice(0, 3).forEach((reg) => {
-          notifs.push({
-            id: `reg-${reg._id}`, icon: "person_add", color: "#4ECDC4", bg: "#edfafa",
-            message: `${reg?.student_id?.name || "A student"} registered for "${reg?.event_id?.title || "your event"}"`,
-            time: reg.registration_date ? new Date(reg.registration_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "",
+        } catch (e) { console.warn("Notif events failed:", e.message); }
+
+        // Try fetching recent registrations
+        try {
+          const regsRes = await axios.get(`${API_URL}/api/organizer-dashboard/recent-registrations`, { headers });
+          (regsRes.data?.recentRegistrations || []).slice(0, 3).forEach((reg) => {
+            notifs.push({
+              id: `reg-${reg._id}`,
+              icon: "person_add",
+              color: "#4ECDC4",
+              bg: "#edfafa",
+              message: `${reg?.student_id?.name || "A student"} registered for "${reg?.event_id?.title || "your event"}"`,
+              time: reg.registration_date ? new Date(reg.registration_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "",
+            });
           });
-        });
+        } catch (e) { console.warn("Notif registrations failed:", e.message); }
+
         setNotifications(notifs);
         setUnreadCount(notifs.length);
       } catch (err) { console.error(err); }
@@ -239,29 +286,29 @@ const OrganizerDashboard = () => {
 
   const statCards = [
     {
-      label: "Total Events", value: events.totalEvents, icon: "event", color: "#8b4fa2", bg: "#f5eefa", delay: 0,
+      label: "Total Events", value: events?.totalEvents || 0, icon: "event", color: "#8b4fa2", bg: "#f5eefa", delay: 0,
       subStats: [
-        { label: `${events.approvedEvents} Approved`, color: "#10b981", bg: "#d1fae5" },
-        { label: `${events.rejectedEvents} Rejected`, color: "#ef4444", bg: "#fee2e2" },
-        { label: `${Math.max(0, events.totalEvents - events.approvedEvents - events.rejectedEvents)} Pending`, color: "#f59e0b", bg: "#fed7aa" },
+        { label: `${events?.approvedEvents || 0} Approved`, color: "#10b981", bg: "#d1fae5" },
+        { label: `${events?.rejectedEvents || 0} Rejected`, color: "#ef4444", bg: "#fee2e2" },
+        { label: `${Math.max(0, (events?.totalEvents || 0) - (events?.approvedEvents || 0) - (events?.rejectedEvents || 0))} Pending`, color: "#f59e0b", bg: "#fed7aa" },
       ],
     },
     {
-      label: "Registrations", value: registrations.totalRegistrations, icon: "app_registration", color: "#4ECDC4", bg: "#edfafa", delay: 100,
+      label: "Registrations", value: registrations?.totalRegistrations || 0, icon: "app_registration", color: "#4ECDC4", bg: "#edfafa", delay: 100,
       subStats: [
-        { label: `${registrations.presentCount} Present`, color: "#10b981", bg: "#d1fae5" },
-        { label: `${registrations.absentCount} Absent`, color: "#ef4444", bg: "#fee2e2" },
+        { label: `${registrations?.presentCount || 0} Present`, color: "#10b981", bg: "#d1fae5" },
+        { label: `${registrations?.absentCount || 0} Absent`, color: "#ef4444", bg: "#fee2e2" },
       ],
     },
     {
-      label: "Tasks", value: tasks.totalTasks, icon: "task_alt", color: "#f59e0b", bg: "#fffbeb", delay: 200,
+      label: "Tasks", value: tasks?.totalTasks || 0, icon: "task_alt", color: "#f59e0b", bg: "#fffbeb", delay: 200,
       subStats: [
-        { label: `${tasks.completedTasks} Completed`, color: "#10b981", bg: "#d1fae5" },
-        { label: `${tasks.pendingTasks} Pending`, color: "#f59e0b", bg: "#fed7aa" },
+        { label: `${tasks?.completedTasks || 0} Completed`, color: "#10b981", bg: "#d1fae5" },
+        { label: `${tasks?.pendingTasks || 0} Pending`, color: "#f59e0b", bg: "#fed7aa" },
       ],
     },
     {
-      label: "Certificates", value: totalCertificates, icon: "workspace_premium", color: "#FF6B6B", bg: "#fff1f1", delay: 300,
+      label: "Certificates", value: totalCertificates || 0, icon: "workspace_premium", color: "#FF6B6B", bg: "#fff1f1", delay: 300,
       subStats: [{ label: "Total Issued", color: "#FF6B6B", bg: "#ffe4e4" }],
     },
   ];
@@ -377,23 +424,21 @@ const OrganizerDashboard = () => {
               {/* Right Side — Bell + Clock */}
               <div className="flex items-center gap-4">
 
-                {/* 🔔 Notification Bell */}
-                {/* 🔔 Notification Bell — sirf desktop */}
-<div className="relative hidden md:block" ref={notifRef}>
-  <button
-    onClick={() => { setNotifOpen(!notifOpen); setUnreadCount(0); }}
-    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition relative"
-  >
-    <span className="material-symbols-outlined text-[22px] text-gray-600">notifications</span>
-    {unreadCount > 0 && (
-      <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-        {unreadCount > 9 ? "9+" : unreadCount}
-      </span>
-    )}
-  </button>
-  {notifOpen && <NotifDropdown />}
-</div>
-
+                {/* Notification Bell */}
+                <div className="relative hidden md:block" ref={notifRef}>
+                  <button
+                    onClick={() => { setNotifOpen(!notifOpen); setUnreadCount(0); }}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition relative"
+                  >
+                    <span className="material-symbols-outlined text-[22px] text-gray-600">notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  {notifOpen && <NotifDropdown />}
+                </div>
 
                 {/* Live Clock */}
                 <div className="flex flex-col items-end gap-2">
@@ -435,56 +480,56 @@ const OrganizerDashboard = () => {
             </div>
           </div>
 
-        {/* ── CHARTS ROW ── */}
-<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-  <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
-    style={{ animation: "slideUp 0.5s ease forwards 350ms", opacity: 0 }}>
-    <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-      <div>
-        <h3 className="text-lg font-black text-gray-800">📈 Registration Trends</h3>
-        <p className="text-xs text-gray-400 mt-0.5">Weekly / Monthly / Yearly view</p>
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={() => setChartType("weekly")}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "weekly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
-        >
-          Weekly
-        </button>
-        <button
-          onClick={() => setChartType("monthly")}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "monthly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
-        >
-          Monthly
-        </button>
-        <button
-          onClick={() => setChartType("yearly")}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "yearly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
-        >
-          Yearly
-        </button>
-      </div>
-    </div>
-    
-    {/* Chart - Dynamically showing based on selected type */}
-    {trends.length === 0 ? (
-      <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-        <span className="material-symbols-outlined text-[40px] mb-2">bar_chart</span>
-        <p className="text-sm font-semibold">No registration data yet</p>
-      </div>
-    ) : (
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={trends} barSize={chartType === "yearly" ? 60 : 32}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} />
-          <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} allowDecimals={false} />
-          <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} cursor={{ fill: "#f5eefa" }} />
-          <Bar dataKey="count" name="Registrations" fill="#8b4fa2" radius={[8, 8, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    )}
-  </div>
-  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+          {/* ── CHARTS ROW ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+              style={{ animation: "slideUp 0.5s ease forwards 350ms", opacity: 0 }}>
+              <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+                <div>
+                  <h3 className="text-lg font-black text-gray-800">📈 Registration Trends</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Weekly / Monthly / Yearly view</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setChartType("weekly")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "weekly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                  >
+                    Weekly
+                  </button>
+                  <button
+                    onClick={() => setChartType("monthly")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "monthly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setChartType("yearly")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${chartType === "yearly" ? "bg-[#8b4fa2] text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                  >
+                    Yearly
+                  </button>
+                </div>
+              </div>
+
+              {trends.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                  <span className="material-symbols-outlined text-[40px] mb-2">bar_chart</span>
+                  <p className="text-sm font-semibold">No registration data yet</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={trends} barSize={chartType === "yearly" ? 60 : 32}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} cursor={{ fill: "#f5eefa" }} />
+                    <Bar dataKey="count" name="Registrations" fill="#8b4fa2" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
               style={{ animation: "slideUp 0.5s ease forwards 450ms", opacity: 0 }}>
               <div className="flex items-center justify-between mb-5">
                 <div>
@@ -497,9 +542,9 @@ const OrganizerDashboard = () => {
               </div>
               <div className="space-y-5">
                 {[
-                  { label: "Task Completion", value: tasks.totalTasks > 0 ? Math.round((tasks.completedTasks / tasks.totalTasks) * 100) : 0, color: "#8b4fa2", bg: "#f5eefa", icon: "check_circle", sub: `${tasks.completedTasks} of ${tasks.totalTasks} done` },
-                  { label: "Attendance Rate", value: registrations.totalRegistrations > 0 ? Math.round((registrations.presentCount / registrations.totalRegistrations) * 100) : 0, color: "#4ECDC4", bg: "#edfafa", icon: "group", sub: `${registrations.presentCount} of ${registrations.totalRegistrations} present` },
-                  { label: "Approval Rate", value: events.totalEvents > 0 ? Math.round((events.approvedEvents / events.totalEvents) * 100) : 0, color: "#f59e0b", bg: "#fffbeb", icon: "verified", sub: `${events.approvedEvents} of ${events.totalEvents} approved` },
+                  { label: "Task Completion", value: tasks?.totalTasks > 0 ? Math.round((tasks.completedTasks / tasks.totalTasks) * 100) : 0, color: "#8b4fa2", bg: "#f5eefa", icon: "check_circle", sub: `${tasks?.completedTasks || 0} of ${tasks?.totalTasks || 0} done` },
+                  { label: "Attendance Rate", value: registrations?.totalRegistrations > 0 ? Math.round((registrations.presentCount / registrations.totalRegistrations) * 100) : 0, color: "#4ECDC4", bg: "#edfafa", icon: "group", sub: `${registrations?.presentCount || 0} of ${registrations?.totalRegistrations || 0} present` },
+                  { label: "Approval Rate", value: events?.totalEvents > 0 ? Math.round((events.approvedEvents / events.totalEvents) * 100) : 0, color: "#f59e0b", bg: "#fffbeb", icon: "verified", sub: `${events?.approvedEvents || 0} of ${events?.totalEvents || 0} approved` },
                 ].map((item, i) => (
                   <div key={i} className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -523,9 +568,9 @@ const OrganizerDashboard = () => {
                 <span className="text-gray-400">Overall Performance</span>
                 <span className="font-bold text-gray-700">
                   {Math.round(
-                    ((tasks.completedTasks / (tasks.totalTasks || 1)) * 100 +
-                    (registrations.presentCount / (registrations.totalRegistrations || 1)) * 100 +
-                    (events.approvedEvents / (events.totalEvents || 1)) * 100) / 3
+                    ((tasks?.completedTasks || 0) / ((tasks?.totalTasks || 1)) * 100 +
+                    (registrations?.presentCount || 0) / ((registrations?.totalRegistrations || 1)) * 100 +
+                    (events?.approvedEvents || 0) / ((events?.totalEvents || 1)) * 100) / 3
                   )}% Avg
                 </span>
               </div>
@@ -535,55 +580,55 @@ const OrganizerDashboard = () => {
           {/* ── BOTTOM ROW ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-         {/* Top Rated */}
-<div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
-  style={{ animation: "slideUp 0.5s ease forwards 500ms", opacity: 0 }}>
-  <div className="flex items-center justify-between mb-5">
-    <div>
-      <h3 className="text-lg font-black text-gray-800">🏆 Top Rated</h3>
-      <p className="text-xs text-gray-400 mt-0.5">Click to view all feedback</p>
-    </div>
-    <button 
-      onClick={() => navigate("/organizer/feedback")}
-      className="text-xs font-bold text-[#8b4fa2] hover:underline flex items-center gap-1"
-    >
-      View All 
-    </button>
-  </div>
-  {topEvents.length === 0 ? (
-    <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-      <span className="material-symbols-outlined text-5xl mb-3 opacity-50">reviews</span>
-      <p className="text-sm font-semibold">No feedback yet</p>
-    </div>
-  ) : (
-    <div className="space-y-3">
-      {topEvents.map((ev, i) => (
-        <div 
-          key={i} 
-          onClick={() => navigate("/organizer/feedback")}
-          className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-md shrink-0"
-              style={{ background: medalGradients[Math.min(i, 3)] }}>
-              {i + 1}
+            {/* Top Rated */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+              style={{ animation: "slideUp 0.5s ease forwards 500ms", opacity: 0 }}>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-lg font-black text-gray-800">🏆 Top Rated</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Click to view all feedback</p>
+                </div>
+                <button
+                  onClick={() => navigate("/organizer/feedback")}
+                  className="text-xs font-bold text-[#8b4fa2] hover:underline flex items-center gap-1"
+                >
+                  View All
+                </button>
+              </div>
+              {!topEvents || topEvents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                  <span className="material-symbols-outlined text-5xl mb-3 opacity-50">reviews</span>
+                  <p className="text-sm font-semibold">No feedback yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {topEvents.slice(0, 3).map((ev, i) => (
+                    <div
+                      key={i}
+                      onClick={() => navigate("/organizer/feedback")}
+                      className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-md shrink-0"
+                          style={{ background: medalGradients[Math.min(i, 3)] }}>
+                          {i + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-700 truncate">
+                            {ev.title || ev.eventTitle || `Event #${ev._id?.toString().slice(-6)}`}
+                          </p>
+                          <p className="text-[10px] text-gray-400">{ev.totalFeedbacks || 0} reviews</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full shadow-sm shrink-0">
+                        <span className="material-symbols-outlined text-sm text-amber-400" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                        <span className="text-sm font-black text-amber-600">{(ev.avgRating || 0).toFixed(1)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-700 truncate">
-                {ev.title || ev.eventTitle || `Event #${ev._id?.toString().slice(-6)}`}
-              </p>
-              <p className="text-[10px] text-gray-400">{ev.totalFeedbacks} reviews</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full shadow-sm shrink-0">
-            <span className="material-symbols-outlined text-sm text-amber-400" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-            <span className="text-sm font-black text-amber-600">{ev.avgRating?.toFixed(1)}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
 
             {/* Upcoming Events */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
@@ -603,7 +648,7 @@ const OrganizerDashboard = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {upcomingEvents.map((event, i) => {
+                  {upcomingEvents.slice(0, 4).map((event, i) => {
                     const date = new Date(event.start_date);
                     return (
                       <div key={i} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer group">
@@ -630,53 +675,52 @@ const OrganizerDashboard = () => {
               )}
             </div>
 
-          {/* Recent Registrations */}
-<div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
-  style={{ animation: "slideUp 0.5s ease forwards 700ms", opacity: 0 }}>
-  <div className="flex items-center justify-between mb-5">
-    <div>
-      <h3 className="text-lg font-black text-gray-800">👥 Recent Registrations</h3>
-      <p className="text-xs text-gray-400 mt-0.5">Click to view all registrations</p>
-    </div>
-    <button 
-      onClick={() => navigate("/organizer/my-events")}
-    className="text-xs font-bold text-[#8b4fa2] hover:underline">View All</button> 
-   
-  </div>
-  {recentRegistrations.length === 0 ? (
-    <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-      <span className="material-symbols-outlined text-5xl mb-3 opacity-50">group</span>
-      <p className="text-sm font-semibold">No registrations yet</p>
-    </div>
-  ) : (
-    <div className="space-y-3">
-      {recentRegistrations.slice(0, 5).map((reg, i) => {
-        const name = reg?.student_id?.name || "Unknown";
-        const avatarColors = ["#8b4fa2", "#4ECDC4", "#FF6B6B", "#f59e0b", "#6366f1"];
-        return (
-          <div 
-            key={i} 
-            onClick={() => navigate("/organizer/my-events")}
-            className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black shrink-0"
-              style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
-              {name.charAt(0).toUpperCase()}
+            {/* Recent Registrations */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+              style={{ animation: "slideUp 0.5s ease forwards 700ms", opacity: 0 }}>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-lg font-black text-gray-800">👥 Recent Registrations</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Click to view all registrations</p>
+                </div>
+                <button
+                  onClick={() => navigate("/organizer/my-events")}
+                  className="text-xs font-bold text-[#8b4fa2] hover:underline">View All</button>
+              </div>
+              {recentRegistrations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                  <span className="material-symbols-outlined text-5xl mb-3 opacity-50">group</span>
+                  <p className="text-sm font-semibold">No registrations yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentRegistrations.slice(0, 5).map((reg, i) => {
+                    const name = reg?.student_id?.name || "Unknown";
+                    const avatarColors = ["#8b4fa2", "#4ECDC4", "#FF6B6B", "#f59e0b", "#6366f1"];
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => navigate("/organizer/my-events")}
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
+                      >
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black shrink-0"
+                          style={{ backgroundColor: avatarColors[i % avatarColors.length] }}>
+                          {name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-800 truncate">{name}</p>
+                          <p className="text-xs text-gray-400 truncate">{reg?.event_id?.title || "Event"}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap
+                          ${reg.role === "Volunteer" ? "bg-[#edfafa] text-[#4ECDC4]" : "bg-[#f5eefa] text-[#8b4fa2]"}`}>
+                          {reg.role}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-800 truncate">{name}</p>
-              <p className="text-xs text-gray-400 truncate">{reg?.event_id?.title || "Event"}</p>
-            </div>
-            <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap
-              ${reg.role === "Volunteer" ? "bg-[#edfafa] text-[#4ECDC4]" : "bg-[#f5eefa] text-[#8b4fa2]"}`}>
-              {reg.role}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  )}
-</div>
           </div>
         </main>
       </div>

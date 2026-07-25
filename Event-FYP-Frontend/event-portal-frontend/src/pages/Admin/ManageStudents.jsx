@@ -22,7 +22,10 @@ import {
   Mail,
   User,
   Sparkles,
-  BarChart3
+  BarChart3,
+  Edit,
+  Save,
+  UserPlus
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -51,6 +54,31 @@ const ManageStudents = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
+  
+  // ── Edit Student State ──
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    grade: "",
+    semester: "",
+    department: ""
+  });
+  const [isEditing, setIsEditing] = useState(false);
+
+  // ── Add Student State ──
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [newStudent, setNewStudent] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    grade: "",
+    semester: "",
+    department: "",
+    password: ""
+  });
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -80,6 +108,12 @@ const ManageStudents = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
+  };
+
+  // ── Filter Handler for Stats ──
+  const handleStatCardClick = (filterType) => {
+    setActiveFilter(filterType);
+    setShowFilters(true);
   };
 
   const handleDelete = async (id) => {
@@ -123,13 +157,150 @@ const ManageStudents = () => {
     }
   };
 
-  // AI Grade Detection
+  // ── Add Student Functions ──
+  const handleAddStudentChange = (e) => {
+    const { name, value } = e.target;
+    setNewStudent(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddStudent = async (e) => {
+    e.preventDefault();
+
+    if (!newStudent.name || !newStudent.email || !newStudent.password) {
+      showToast("Please fill all required fields", "error");
+      return;
+    }
+
+    if (newStudent.password.length < 6) {
+      showToast("Password must be at least 6 characters", "error");
+      return;
+    }
+
+    if (newStudent.grade === "other" && !newStudent.department) {
+      showToast("Please specify department", "error");
+      return;
+    }
+
+    try {
+      setAddingStudent(true);
+
+      let finalDepartment = newStudent.grade;
+      if (newStudent.grade === "other") {
+        finalDepartment = newStudent.department;
+      }
+
+      const payload = {
+        name: newStudent.name,
+        email: newStudent.email,
+        password: newStudent.password,
+        grade: newStudent.grade,
+        department: finalDepartment,
+        semester: newStudent.semester ? Number(newStudent.semester) : null,
+        phone: newStudent.phone || ""
+      };
+
+      await axios.post(`${API_URL}/api/students/register`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      await fetchStudents();
+      setShowAddModal(false);
+      setNewStudent({
+        name: "",
+        email: "",
+        phone: "",
+        grade: "",
+        semester: "",
+        department: "",
+        password: ""
+      });
+      showToast("Student added successfully!", "success");
+    } catch (err) {
+      console.error(err);
+      showToast(err?.response?.data?.message || "Failed to add student.", "error");
+    } finally {
+      setAddingStudent(false);
+    }
+  };
+
+  // ── Edit Student Functions ──
+  const startEditing = (student) => {
+    setEditingStudent(student);
+    setEditFormData({
+      name: student.name || "",
+      email: student.email || "",
+      phone: student.phone || "",
+      grade: student.grade || "",
+      semester: student.semester || "",
+      department: student.department || ""
+    });
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditingStudent(null);
+    setEditFormData({
+      name: "",
+      email: "",
+      phone: "",
+      grade: "",
+      semester: "",
+      department: ""
+    });
+    setIsEditing(false);
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingStudent) return;
+    
+    try {
+      const payload = {
+        name: editFormData.name,
+        grade: editFormData.grade,
+        semester: editFormData.semester ? Number(editFormData.semester) : null,
+        department: editFormData.department
+      };
+
+      await axios.put(`${API_URL}/api/students/${editingStudent._id}`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setStudents(prev => prev.map(s => 
+        s._id === editingStudent._id ? { ...s, ...payload } : s
+      ));
+
+      if (selectedStudent?._id === editingStudent._id) {
+        setSelectedStudent(prev => ({ ...prev, ...payload }));
+      }
+
+      showToast("Student updated successfully!", "success");
+      cancelEditing();
+    } catch (err) {
+      console.error(err);
+      showToast(err?.response?.data?.message || "Failed to update student.", "error");
+    }
+  };
+
+  // ── AI Grade Detection ──
   const detectGrade = (student) => {
     const grade = student.grade || "";
     const department = student.department || "";
-    const semester = student.semester || "";
 
     const knownGrades = ["cs", "math", "hssc1", "hssc2", "10", "9", "8", "7", "6", "5"];
+    
+    if (department && !knownGrades.includes(department) && department !== "") {
+      return {
+        label: department,
+        color: "bg-purple-100 text-purple-700",
+        icon: "🏛️"
+      };
+    }
+
     if (knownGrades.includes(grade)) {
       return {
         label: getGradeLabel(grade),
@@ -272,7 +443,6 @@ const ManageStudents = () => {
     setSelectAll(!selectAll);
   };
 
-  // CSV Headers and Data Mapping for Export
   const csvHeaders = ["Name", "Email", "Phone", "Grade", "Semester", "Department", "Registered Date"];
   const csvMapData = (student) => [
     student.name || "",
@@ -284,7 +454,6 @@ const ManageStudents = () => {
     student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "N/A"
   ];
 
-  // Custom export handler
   const handleExportCSV = () => {
     setIsExporting(true);
     setTimeout(() => {
@@ -303,12 +472,10 @@ const ManageStudents = () => {
           className="relative overflow-hidden px-6 pt-6 pb-10"
           style={{ background: "linear-gradient(135deg,#9B59B6 0%,#6d3483 100%)" }}
         >
-          
-          
           <div className="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 rounded-full bg-[#FFE66D] text-[#1A1A1A] text-xs font-black tracking-widest uppercase">
-             
+              
                 Admin Portal
               </div>
               <h1 className="text-4xl font-black text-white leading-tight tracking-tight">
@@ -319,29 +486,32 @@ const ManageStudents = () => {
               </p>
             </div>
 
-            {/* Stats Pills */}
+            {/* Clickable Stats Pills */}
             <div className="flex gap-2 flex-wrap">
               {[
-                { label: "Total", value: totalStudents, color: "#FFE66D", icon: <Users size={14} /> },
-                { label: "CS", value: csStudents, color: "#4ECDC4", icon: <GraduationCap size={14} /> },
-                { label: "Math", value: mathStudents, color: "#FF6B6B", icon: <BarChart3 size={14} /> },
-                { label: "HSSC", value: hsscStudents, color: "#FFB347", icon: <BookOpen size={14} /> },
-                { label: "Other", value: otherStudents, color: "#a78bfa", icon: <Award size={14} /> },
+                { key: "all", label: "Total", value: totalStudents, color: "#FFE66D", icon: <Users size={14} /> },
+                { key: "cs", label: "CS", value: csStudents, color: "#4ECDC4", icon: <GraduationCap size={14} /> },
+                { key: "math", label: "Math", value: mathStudents, color: "#FF6B6B", icon: <BarChart3 size={14} /> },
+                { key: "hssc1", label: "HSSC", value: hsscStudents, color: "#FFB347", icon: <BookOpen size={14} /> },
+                { key: "other", label: "Other", value: otherStudents, color: "#a78bfa", icon: <Award size={14} /> },
               ].map((s) => (
-                <div
-                  key={s.label}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full transition-transform hover:scale-105 duration-200"
+                <button
+                  key={s.key}
+                  onClick={() => {
+                    setActiveFilter(s.key);
+                    setShowFilters(true);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-transform hover:scale-105 duration-200 ${
+                    activeFilter === s.key ? "ring-2 ring-white/50" : ""
+                  }`}
                   style={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}
                 >
                   <span className="text-white/70">{s.icon}</span>
-                  <span
-                    className="text-xl font-black"
-                    style={{ color: s.color }}
-                  >
+                  <span className="text-xl font-black" style={{ color: s.color }}>
                     {s.value}
                   </span>
                   <span className="text-white/70 text-xs font-semibold">{s.label}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -375,6 +545,15 @@ const ManageStudents = () => {
             </div>
 
             <div className="flex gap-2 flex-wrap">
+              {/* ✅ Add Student Button */}
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] text-white font-bold hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
+              >
+                <UserPlus size={20} />
+                <span>Add Student</span>
+              </button>
+
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-2 px-4 py-3.5 rounded-2xl transition-all shadow-sm ${
@@ -388,7 +567,6 @@ const ManageStudents = () => {
                 <ChevronDown size={16} className={`transition-transform duration-300 ${showFilters ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* ✅ Export Button Component */}
               <DownloadCSVAdvanced
                 data={filtered}
                 filename="students"
@@ -527,19 +705,19 @@ const ManageStudents = () => {
                   <Mail size={14} /> Email
                 </div>
                 <div className="col-span-2 flex items-center gap-1.5">
-                  <GraduationCap size={14} /> Grade
+                  <GraduationCap size={14} /> Department
                 </div>
                 <div className="col-span-1 flex items-center gap-1.5">
                   <BookOpen size={14} /> Sem
                 </div>
-                <div className="col-span-1">Status</div>
-                <div className="col-span-2 text-right">Actions</div>
+                <div className="col-span-3 text-right">Actions</div>
               </div>
 
               {/* Rows */}
               <div className="divide-y divide-gray-50">
                 {filtered.map((student) => {
                   const detected = detectGrade(student);
+
                   return (
                     <div
                       key={student._id}
@@ -559,10 +737,7 @@ const ManageStudents = () => {
                       </div>
 
                       {/* Avatar + Name */}
-                      <div
-                        className="col-span-3 flex items-center gap-3 cursor-pointer"
-                        onClick={() => setSelectedStudent(student)}
-                      >
+                      <div className="col-span-3 flex items-center gap-3">
                         <div
                           className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm transition-all group-hover:scale-110 group-hover:shadow-md"
                           style={{ backgroundColor: getColor(student.name) }}
@@ -586,7 +761,7 @@ const ManageStudents = () => {
                         <p className="text-sm text-gray-500 truncate">{student.email}</p>
                       </div>
 
-                      {/* Grade */}
+                      {/* Grade/Department */}
                       <div className="col-span-2 hidden md:block">
                         <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${detected.color}`}>
                           {detected.icon} {detected.label}
@@ -600,22 +775,21 @@ const ManageStudents = () => {
                         </span>
                       </div>
 
-                      {/* Status */}
-                      <div className="col-span-1 hidden md:block">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600">
-                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                          Active
-                        </span>
-                      </div>
-
                       {/* Actions */}
-                      <div className="col-span-2 flex items-center justify-end gap-1.5">
+                      <div className="col-span-3 flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => setSelectedStudent(student)}
                           className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center hover:bg-purple-100 transition-colors group-hover:shadow-sm"
                           title="View Details"
                         >
                           <Eye size={16} className="text-[#8b4fa2]" />
+                        </button>
+                        <button
+                          onClick={() => startEditing(student)}
+                          className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center hover:bg-blue-100 transition-colors group-hover:shadow-sm"
+                          title="Edit Student"
+                        >
+                          <Edit size={16} className="text-blue-600" />
                         </button>
                         <button
                           onClick={() => setConfirmDelete(student)}
@@ -644,14 +818,184 @@ const ManageStudents = () => {
         </div>
       </main>
 
-      {/* ===== STUDENT DETAIL MODAL (Enhanced) ===== */}
+      {/* ===== ADD STUDENT MODAL ===== */}
+      {showAddModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
+          onClick={() => setShowAddModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl border-8 border-yellow-400 shadow-2xl w-full max-w-md p-6 transform transition-all duration-200 scale-100 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                <UserPlus size={22} className="text-[#8b4fa2]" />
+                Add Student
+              </h3>
+              <button 
+                onClick={() => setShowAddModal(false)} 
+                className="text-gray-400 hover:text-gray-600 transition p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddStudent}>
+              <div className="space-y-4">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Full Name *</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={newStudent.name}
+                    onChange={handleAddStudentChange}
+                    placeholder="Enter full name"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                    required
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Email *</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={newStudent.email}
+                    onChange={handleAddStudentChange}
+                    placeholder="Enter email address"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                    required
+                  />
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Password *</label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={newStudent.password}
+                    onChange={handleAddStudentChange}
+                    placeholder="Enter password (min 6 characters)"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                    required
+                    minLength={6}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Minimum 6 characters</p>
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Phone</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={newStudent.phone}
+                    onChange={handleAddStudentChange}
+                    placeholder="03XXXXXXXXX"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                  />
+                </div>
+
+                {/* Grade/Department */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Grade/Department</label>
+                  <select
+                    name="grade"
+                    value={newStudent.grade}
+                    onChange={handleAddStudentChange}
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                  >
+                    <option value="">Select Grade</option>
+                    <option value="cs">Computer Science</option>
+                    <option value="math">Mathematics</option>
+                    <option value="hssc1">HSSC I</option>
+                    <option value="hssc2">HSSC II</option>
+                    <option value="10">10 Grade</option>
+                    <option value="9">9 Grade</option>
+                    <option value="8">8 Grade</option>
+                    <option value="7">7 Grade</option>
+                    <option value="6">6 Grade</option>
+                    <option value="5">5 Grade</option>
+                    <option value="other">Other Department</option>
+                  </select>
+                </div>
+
+                {/* Custom Department - Only shows when "other" is selected */}
+                {newStudent.grade === "other" && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Custom Department *</label>
+                    <input
+                      type="text"
+                      name="department"
+                      value={newStudent.department}
+                      onChange={handleAddStudentChange}
+                      placeholder="Enter your department name"
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Semester */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Semester</label>
+                  <select
+                    name="semester"
+                    value={newStudent.semester}
+                    onChange={handleAddStudentChange}
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                  >
+                    <option value="">Select Semester</option>
+                    {[1,2,3,4,5,6,7,8].map(num => (
+                      <option key={num} value={num}>Semester {num}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingStudent}
+                  className="flex-1 py-2.5 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] hover:shadow-lg disabled:opacity-50"
+                >
+                  {addingStudent ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={18} />
+                      Add Student
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== STUDENT DETAIL MODAL ===== */}
       {selectedStudent && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
           onClick={() => setSelectedStudent(null)}
         >
           <div
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 transform transition-all duration-200 scale-100 max-h-[90vh] overflow-y-auto border-4 border-white"
+            className="bg-white rounded-3xl border-8 border-yellow-400 shadow-2xl w-full max-w-md p-6 transform transition-all duration-200 scale-100 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
@@ -691,7 +1035,6 @@ const ManageStudents = () => {
                 <BookOpen size={16} className="text-[#8b4fa2] mb-1" />
                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Semester</p>
                 <p className="text-sm text-gray-700 font-medium">
-                  {/* ✅ If semester exists show it, otherwise show grade */}
                   {selectedStudent.semester ? `Semester ${selectedStudent.semester}` : selectedStudent.grade || "N/A"}
                 </p>
               </div>
@@ -699,7 +1042,6 @@ const ManageStudents = () => {
                 <Award size={16} className="text-[#8b4fa2] mb-1" />
                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-wider">Department</p>
                 <p className="text-sm text-gray-700 font-medium">
-                  {/* ✅ If department exists show it, otherwise show grade */}
                   {selectedStudent.department || selectedStudent.grade || "N/A"}
                 </p>
               </div>
@@ -712,13 +1054,17 @@ const ManageStudents = () => {
               </div>
             </div>
 
-            {/* ✅ AI Grade Detection - Without Title, Only Icon and Label */}
+            {/* AI Grade Detection */}
             <div className="p-4 bg-linear-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 mb-4">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{detectGrade(selectedStudent).icon}</span>
                 <div>
                   <span className="font-semibold text-gray-700">{detectGrade(selectedStudent).label}</span>
-                  <p className="text-xs text-gray-400">Detected Grade</p>
+                  <p className="text-xs text-gray-400">
+                    {selectedStudent.department && !["cs", "math", "hssc1", "hssc2", "10", "9", "8", "7", "6", "5"].includes(selectedStudent.department) 
+                      ? "Custom Department" 
+                      : "Detected Grade"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -736,6 +1082,146 @@ const ManageStudents = () => {
               >
                 <Trash2 size={16} />
                 Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== EDIT STUDENT MODAL ===== */}
+      {isEditing && editingStudent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
+          onClick={() => cancelEditing()}
+        >
+          <div
+            className="bg-white rounded-3xl border-8 border-yellow-400 shadow-2xl w-full max-w-md p-6 transform transition-all duration-200 scale-100 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                <Edit size={22} className="text-blue-600" />
+                Edit Student
+              </h3>
+              <button 
+                onClick={() => cancelEditing()} 
+                className="text-gray-400 hover:text-gray-600 transition p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Full Name *</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={editFormData.name}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Email *</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={editFormData.email}
+                  disabled
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <span>🔒</span> Email cannot be changed
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Phone</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={editFormData.phone}
+                  disabled
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <span>🔒</span> Phone cannot be changed
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Grade/Department</label>
+                <select
+                  name="grade"
+                  value={editFormData.grade}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                >
+                  <option value="">Select Grade</option>
+                  <option value="cs">Computer Science</option>
+                  <option value="math">Mathematics</option>
+                  <option value="hssc1">HSSC I</option>
+                  <option value="hssc2">HSSC II</option>
+                  <option value="10">10 Grade</option>
+                  <option value="9">9 Grade</option>
+                  <option value="8">8 Grade</option>
+                  <option value="7">7 Grade</option>
+                  <option value="6">6 Grade</option>
+                  <option value="5">5 Grade</option>
+                  <option value="other">Other Department</option>
+                </select>
+              </div>
+
+              {editFormData.grade === "other" && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Custom Department *</label>
+                  <input
+                    type="text"
+                    name="department"
+                    value={editFormData.department}
+                    onChange={handleEditChange}
+                    placeholder="Enter your department name"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                    required={editFormData.grade === "other"}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    This will appear as "Detected Grade" in the profile
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Semester</label>
+                <select
+                  name="semester"
+                  value={editFormData.semester}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-gray-50 focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                >
+                  <option value="">Select Semester</option>
+                  {[1,2,3,4,5,6,7,8].map(num => (
+                    <option key={num} value={num}>Semester {num}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => cancelEditing()}
+                className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="flex-1 py-2.5 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 bg-linear-to-r from-blue-500 to-blue-600 hover:shadow-lg"
+              >
+                <Save size={18} />
+                Save Changes
               </button>
             </div>
           </div>

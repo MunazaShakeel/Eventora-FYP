@@ -156,3 +156,27 @@ exports.getStudentRegistrations = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+
+// ------------------ GET VOLUNTEERS BY EVENT ------------------
+exports.getVolunteersByEvent = async (req, res) => {
+  try {
+    const { event_id } = req.params;
+
+    const volunteers = await Registration.find({
+      event_id: event_id,
+      role: 'Volunteer'
+    })
+    .populate('student_id', 'name email department phone')
+    .populate('event_id', 'title start_date venue');
+
+    res.status(200).json({
+      success: true,
+      count: volunteers.length,
+      data: volunteers
+    });
+  } catch (error) {
+    console.error('Get volunteers error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
