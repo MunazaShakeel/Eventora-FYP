@@ -1,4 +1,8 @@
 const Event = require('../models/Event');
+const Registration = require("../models/Registration");
+const Feedback = require("../models/Feedback");
+const Certificate = require("../models/Certificate");
+const Task = require("../models/Task");
 
 const buildImageUrl = (req, filename) => {
     if (!filename) return undefined;
@@ -152,4 +156,73 @@ exports.getMyEvents = async (req, res) => {
       message: "Server Error"
     });
   }
+};
+
+
+
+
+// ── ADMIN ADDITIONAL FUNCTIONS ──
+
+// Admin can edit ANY event
+exports.adminUpdateEvent = async (req, res) => {
+    try {
+        const { title, description, image_url, venue, start_date, start_time, end_date, end_time, category } = req.body;
+        const uploadedImageUrl = buildImageUrl(req, req.file && req.file.filename);
+        const updateData = {};
+
+        if (title !== undefined) updateData.title = title;
+        if (description !== undefined) updateData.description = description;
+        if (uploadedImageUrl) {
+            updateData.image_url = uploadedImageUrl;
+        } else if (image_url !== undefined) {
+            updateData.image_url = image_url;
+        }
+        if (venue !== undefined) updateData.venue = venue;
+        if (category !== undefined) updateData.category = category;
+        if (start_date !== undefined) updateData.start_date = start_date;
+        if (start_time !== undefined) updateData.start_time = start_time;
+        if (end_date !== undefined) updateData.end_date = end_date;
+        if (end_time !== undefined) updateData.end_time = end_time;
+
+        const event = await Event.findByIdAndUpdate(
+            req.params.id,
+            updateData,
+            { new: true }
+        ).populate('organizer_id', 'name email department');
+
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        res.json({ 
+            message: 'Event updated successfully by admin', 
+            event 
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin can delete ANY event (with cascade)
+exports.adminDeleteEvent = async (req, res) => {
+    try {
+        const event = await Event.findById(req.params.id);
+
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        // Cascade delete all related data
+        await Promise.all([
+            Registration.deleteMany({ event_id: req.params.id }),
+            Feedback.deleteMany({ event_id: req.params.id }),
+            Certificate.deleteMany({ event_id: req.params.id }),
+            Task.deleteMany({ event_id: req.params.id })
+        ]);
+
+        await event.deleteOne();
+
+        res.json({ 
+            message: 'Event and all associated data deleted successfully by admin',
+            deletedEvent: event.title
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };

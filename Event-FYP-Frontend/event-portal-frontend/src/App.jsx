@@ -34,7 +34,7 @@ import ManageOrganizers from "./pages/Admin/ManageOrganizers";
 import AdminManageTasks from "./pages/Admin/AdminManageTasks";
 import ManageFeedback from "./pages/Admin/ManageFeedback";
 import ManageFeedbacks from "./pages/Admin/ManageFeedback.jsx";
-
+import ManageCertificates from "./pages/Admin/ManageCertificates";
 
 
 
@@ -106,8 +106,7 @@ function App() {
       <Route path="/admin/gallery" element={<AdminGallery />} />
       <Route path="/admin/manage-tasks" element={<AdminManageTasks />} />
       <Route path="/admin/feedback" element={<ManageFeedbacks />} />
-   
-  
+      <Route path="/admin/certificates" element={<ManageCertificates />} />
 
     </Routes>
   );

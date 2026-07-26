@@ -146,7 +146,7 @@ const OrganizerTasks = () => {
   };
 
   const handleDeleteTask = async (taskId) => {
-    if (!window.confirm("Are you sure you want to delete this task?")) return;
+    
     setError("");
     setSuccess("");
     try {

@@ -23,4 +23,14 @@ router.delete('/:id', authMiddleware, roleMiddleware('Organizer'), eventControll
 // ── ADMIN ──
 router.put('/:id/approve', authMiddleware, roleMiddleware('Admin'), eventController.approveEvent);
 
+// ── ADMIN ADDITIONAL ROUTES ──
+// Admin can edit ANY event
+router.put('/admin/:id', authMiddleware, roleMiddleware('Admin'), uploadEventImage.single('image'), eventController.adminUpdateEvent);
+
+// Admin can delete ANY event (with cascade)
+router.delete('/admin/:id', authMiddleware, roleMiddleware('Admin'), eventController.adminDeleteEvent);
+
+// Admin get all events (extra route)
+router.get('/admin/all', authMiddleware, roleMiddleware('Admin'), getAllEventsAdmin);
+
 module.exports = router;
