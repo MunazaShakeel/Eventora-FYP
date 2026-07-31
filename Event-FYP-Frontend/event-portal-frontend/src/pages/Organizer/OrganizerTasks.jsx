@@ -2,12 +2,27 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import OrganizerSidebar from "../../components/OrganizerSidebar";
 import { useAuth } from "../../context/AuthContext";
-import { Calendar, CheckCircle, Clock, Plus, Trash2, Users, ListTodo, AlertCircle, UserCheck, Eye, EyeOff } from "lucide-react";
+import {
+  Calendar,
+  CheckCircle,
+  Clock,
+  Plus,
+  Trash2,
+  Pencil,
+  Users,
+  ListTodo,
+  AlertCircle,
+  UserCheck,
+  Eye,
+  EyeOff,
+  X,
+  AlertTriangle,
+} from "lucide-react";
 import VolunteersTable from "../../components/OrganizerComp/Attendance/VolunteersTable";
 
 const OrganizerTasks = () => {
   const { token } = useAuth();
-  
+
   // ✅ API URL from env
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -27,6 +42,23 @@ const OrganizerTasks = () => {
     title: "",
     description: "",
     assigned_to: "",
+  });
+
+  // ✅ Edit Task modal state
+  const [editingTask, setEditingTask] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    title: "",
+    description: "",
+    assigned_to: "",
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  // ✅ Delete Confirmation Dialog state
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    taskId: null,
+    taskTitle: "",
   });
 
   const selectedEvent = useMemo(
@@ -145,8 +177,30 @@ const OrganizerTasks = () => {
     }
   };
 
-  const handleDeleteTask = async (taskId) => {
-    
+  // ✅ Open delete confirmation dialog
+  const openDeleteDialog = (taskId) => {
+    const task = tasks.find((t) => t._id === taskId);
+    setDeleteDialog({
+      isOpen: true,
+      taskId: taskId,
+      taskTitle: task?.title || "Untitled",
+    });
+  };
+
+  // ✅ Close delete confirmation dialog
+  const closeDeleteDialog = () => {
+    setDeleteDialog({
+      isOpen: false,
+      taskId: null,
+      taskTitle: "",
+    });
+  };
+
+  // ✅ Delete task after confirmation
+  const confirmDeleteTask = async () => {
+    const { taskId } = deleteDialog;
+    if (!taskId) return;
+
     setError("");
     setSuccess("");
     try {
@@ -155,8 +209,68 @@ const OrganizerTasks = () => {
       });
       setTasks((prev) => prev.filter((task) => task._id !== taskId));
       setSuccess("Task deleted successfully.");
+      closeDeleteDialog();
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to delete task.");
+      closeDeleteDialog();
+    }
+  };
+
+  // ✅ Open the edit modal, pre-filled with the task's current values
+  const handleOpenEdit = (task) => {
+    setEditError("");
+    setEditingTask(task);
+    setEditFormData({
+      title: task.title || "",
+      description: task.description || "",
+      assigned_to: task.assigned_to?._id || "",
+    });
+  };
+
+  const handleCloseEdit = () => {
+    setEditingTask(null);
+    setEditError("");
+  };
+
+  // ✅ Submit the edited task to PUT /tasks/:id/edit
+  const handleUpdateTask = async (e) => {
+    e.preventDefault();
+    setEditError("");
+
+    if (!editFormData.title.trim()) {
+      return setEditError("Task title is required.");
+    }
+    if (!editFormData.assigned_to) {
+      return setEditError("Please assign a volunteer.");
+    }
+
+    setEditSubmitting(true);
+    try {
+      const res = await axios.put(
+        `${API_URL}/tasks/${editingTask._id}/edit`,
+        {
+          title: editFormData.title.trim(),
+          description: editFormData.description.trim(),
+          assigned_to: editFormData.assigned_to,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const updatedTask = res.data?.task;
+
+      setTasks((prev) =>
+        prev.map((task) =>
+          task._id === editingTask._id ? updatedTask || { ...task, ...editFormData } : task
+        )
+      );
+      setSuccess("Task updated successfully.");
+      handleCloseEdit();
+    } catch (err) {
+      setEditError(err?.response?.data?.message || "Failed to update task.");
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -180,11 +294,11 @@ const OrganizerTasks = () => {
 
       <main className="flex-1 md:ml-64 p-6 lg:p-8 pb-20">
         <div className="max-w-7xl mx-auto">
-          
+
           {/* Yellow Border Card */}
           <div className="border-8 border-yellow-400 rounded-2xl bg-white shadow-lg overflow-hidden">
             <div className="p-6 lg:p-8">
-              
+
               {/* Header */}
               <div className="mb-8 text-center">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-linear-to-br from-[#8b4fa2] to-[#4ECDC4] rounded-2xl shadow-lg mb-4">
@@ -273,7 +387,7 @@ const OrganizerTasks = () => {
                           </p>
                         )}
                       </div>
-                      
+
                       {/* Styled Show/Hide Volunteers Button */}
                       <button
                         onClick={() => setShowVolunteerTable(!showVolunteerTable)}
@@ -302,7 +416,7 @@ const OrganizerTasks = () => {
                   {showVolunteerTable && (
                     <div className="mb-8">
                       {volunteers.length > 0 ? (
-                        <VolunteersTable 
+                        <VolunteersTable
                           volunteers={volunteers}
                           eventTitle={selectedEvent?.title}
                         />
@@ -318,7 +432,7 @@ const OrganizerTasks = () => {
 
                   {/* Two Column Layout for Tasks */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    
+
                     {/* Create Task Form */}
                     <div className="bg-white rounded-2xl border-2 border-gray-100 shadow-sm overflow-hidden">
                       <div className="bg-linear-to-r from-[#8b4fa2] to-[#7a3d91] px-6 py-4">
@@ -462,13 +576,23 @@ const OrganizerTasks = () => {
                                     </div>
                                   </div>
 
-                                  <button
-                                    onClick={() => handleDeleteTask(task._id)}
-                                    className="opacity-0 group-hover:opacity-100 transition-all p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                                    title="Delete task"
-                                  >
-                                    <Trash2 size={18} />
-                                  </button>
+                                  {/* Edit + Delete actions */}
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                    <button
+                                      onClick={() => handleOpenEdit(task)}
+                                      className="p-2 text-[#8b4fa2] hover:text-[#7a3d91] hover:bg-purple-50 rounded-lg"
+                                      title="Edit task"
+                                    >
+                                      <Pencil size={18} />
+                                    </button>
+                                    <button
+                                      onClick={() => openDeleteDialog(task._id)}
+                                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                      title="Delete task"
+                                    >
+                                      <Trash2 size={18} />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -483,6 +607,156 @@ const OrganizerTasks = () => {
           </div>
         </div>
       </main>
+
+      {/* ✅ Edit Task Modal */}
+      {editingTask && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={handleCloseEdit}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-linear-to-r from-[#8b4fa2] to-[#7a3d91] px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Pencil size={18} />
+                Edit Task
+              </h2>
+              <button
+                onClick={handleCloseEdit}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateTask} className="p-6 space-y-5">
+              {editError && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-lg flex items-center gap-2">
+                  <AlertCircle className="text-red-500 shrink-0" size={18} />
+                  <p className="text-red-600 text-sm font-medium">{editError}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Task Title *</label>
+                <input
+                  type="text"
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData((prev) => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Description</label>
+                <textarea
+                  rows={4}
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="flex text-sm font-bold text-gray-700 mb-2 items-center gap-2">
+                  <Users size={16} className="text-[#8b4fa2]" />
+                  Assign Volunteer *
+                </label>
+                <select
+                  value={editFormData.assigned_to}
+                  onChange={(e) => setEditFormData((prev) => ({ ...prev, assigned_to: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white focus:ring-2 focus:ring-[#8b4fa2] focus:border-transparent outline-none transition cursor-pointer"
+                  required
+                >
+                  <option value="">Select a volunteer</option>
+                  {volunteers.map((registration) => (
+                    <option key={registration._id} value={registration._id}>
+                      👤 {registration.student_id?.name || "Volunteer"} - {registration.student_id?.email || "No email"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseEdit}
+                  className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="flex-1 py-3 rounded-xl bg-linear-to-r from-[#8b4fa2] to-[#7a3d91] text-white font-bold hover:shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {editSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Delete Confirmation Dialog */}
+      {deleteDialog.isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={closeDeleteDialog}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-linear-to-r from-red-500 to-red-600 px-6 py-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <AlertTriangle size={22} className="text-white" />
+              </div>
+              <h2 className="text-lg font-bold text-white">Delete Task</h2>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-600 text-sm mb-2">
+                Are you sure you want to delete the task:
+              </p>
+              <p className="font-bold text-gray-800 text-base mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                "{deleteDialog.taskTitle}"
+              </p>
+              <p className="text-xs text-gray-400 mb-6">
+                This action cannot be undone. All data related to this task will be permanently removed.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeDeleteDialog}
+                  className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteTask}
+                  className="flex-1 py-3 rounded-xl bg-linear-to-r from-red-500 to-red-600 text-white font-bold hover:shadow-lg transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={18} />
+                  Delete Task
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -65,99 +65,134 @@ const ManageFeedbacks = () => {
   }, []);
 
   // ── Fetch Events for Filter ──
-  const fetchEvents = async () => {
-    if (!token) return;
+ const fetchEvents = async () => {
+  if (!token) return;
+  try {
+    const res = await axios.get(`${API_URL}/events/all`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    let list = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.events)
+      ? res.data.events
+      : Array.isArray(res.data?.data)
+      ? res.data.data
+      : [];
+    
+    // ✅ FILTER: Sirf approved events
+    list = list.filter(event => event.approved === true);
+    
+    setEvents(list);
+  } catch (err) {
+    console.error("Failed to fetch events:", err);
     try {
-      const res = await axios.get(`${API_URL}/events/all`, {
+      const res2 = await axios.get(`${API_URL}/events`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Handle different response formats
-      const list = Array.isArray(res.data)
-        ? res.data
-        : Array.isArray(res.data?.events)
-        ? res.data.events
-        : Array.isArray(res.data?.data)
-        ? res.data.data
+    
+      let list2 = Array.isArray(res2.data)
+        ? res2.data
+        : Array.isArray(res2.data?.data)
+        ? res2.data.data
         : [];
-      setEvents(list);
-    } catch (err) {
-      console.error("Failed to fetch events:", err);
-      // Fallback: try without /all
-      try {
-        const res2 = await axios.get(`${API_URL}/events`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const list2 = Array.isArray(res2.data)
-          ? res2.data
-          : Array.isArray(res2.data?.data)
-          ? res2.data.data
-          : [];
-        setEvents(list2);
-      } catch (err2) {
-        console.error("Fallback fetch events also failed:", err2);
-      }
+      
+      // ✅ FILTER: Sirf approved events
+      list2 = list2.filter(event => event.approved === true);
+      
+      setEvents(list2);
+    } catch (err2) {
+      console.error("Fallback fetch events also failed:", err2);
     }
-  };
-
+  }
+};
   const fetchAll = async () => {
-    if (!token) {
-      setError("Authentication token not found. Please login again.");
-      setLoading(false);
-      return;
-    }
+  if (!token) {
+    setError("Authentication token not found. Please login again.");
+    setLoading(false);
+    return;
+  }
 
-    try {
-      setLoading(true);
-      setError("");
-      setIsRefreshing(true);
+  try {
+    setLoading(true);
+    setError("");
+    setIsRefreshing(true);
 
-      const headers = { Authorization: `Bearer ${token}` };
+    const headers = { Authorization: `Bearer ${token}` };
 
-      const feedbacksRes = await axios.get(`${API_URL}/feedbacks/admin/all`, {
-        headers,
-      });
+    // 1️⃣ Feedback fetch karein
+    const feedbacksRes = await axios.get(`${API_URL}/feedbacks/admin/all`, {
+      headers,
+    });
 
-      const topEventsRes = await axios.get(`${API_URL}/feedbacks/top-rated`, {
-        headers,
-      });
+    // 2️⃣ Top rated events fetch karein
+    const topEventsRes = await axios.get(`${API_URL}/feedbacks/top-rated`, {
+      headers,
+    });
 
-      if (feedbacksRes.data?.success) {
-        setFeedbacks(feedbacksRes.data.data || []);
-      } else {
-        setFeedbacks([]);
-        setError(feedbacksRes.data?.message || "Failed to load feedbacks");
-      }
+    // 3️⃣ Events list fetch karein (approved wali)
+    const eventsRes = await axios.get(`${API_URL}/events/all`, {
+      headers,
+    });
+    
+    let allEvents = Array.isArray(eventsRes.data)
+      ? eventsRes.data
+      : Array.isArray(eventsRes.data?.events)
+      ? eventsRes.data.events
+      : Array.isArray(eventsRes.data?.data)
+      ? eventsRes.data.data
+      : [];
+    
+    // ✅ Sirf approved events
+    const approvedEvents = allEvents.filter(e => e.approved === true);
+    setEvents(approvedEvents);
 
-      if (Array.isArray(topEventsRes.data)) {
-        setTopEvents(topEventsRes.data);
-      } else if (topEventsRes.data?.data) {
-        setTopEvents(topEventsRes.data.data);
-      } else {
-        setTopEvents([]);
-      }
-
-    } catch (err) {
-      console.error("Fetch error:", err);
-      
-      if (err.response?.status === 401) {
-        setError("Session expired. Please login again.");
-        showToast("Session expired. Please login again.", "error");
-      } else if (err.response?.status === 404) {
-        setError("API endpoint not found. Please check server configuration.");
-        showToast("API endpoint not found", "error");
-      } else {
-        setError(err?.response?.data?.message || "Failed to load feedbacks.");
-        showToast("Failed to load feedbacks", "error");
-      }
-      
+    // ✅ Feedbacks set karein
+    if (feedbacksRes.data?.success) {
+      setFeedbacks(feedbacksRes.data.data || []);
+    } else {
       setFeedbacks([]);
-      setTopEvents([]);
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      setError(feedbacksRes.data?.message || "Failed to load feedbacks");
     }
-  };
 
+    // ✅ Top Events set karein (sirf approved)
+    let topEventsData = [];
+    if (Array.isArray(topEventsRes.data)) {
+      topEventsData = topEventsRes.data;
+    } else if (topEventsRes.data?.data) {
+      topEventsData = topEventsRes.data.data;
+    } else {
+      topEventsData = [];
+    }
+    
+    // 🔥 Sirf approved events ko top-rated mein include karein
+    const approvedTopEvents = topEventsData.filter(topEvent => {
+      return approvedEvents.some(e => e._id === topEvent._id || e._id === topEvent.event_id);
+    });
+    
+    setTopEvents(approvedTopEvents);
+
+  } catch (err) {
+    console.error("Fetch error:", err);
+    
+    if (err.response?.status === 401) {
+      setError("Session expired. Please login again.");
+      showToast("Session expired. Please login again.", "error");
+    } else if (err.response?.status === 404) {
+      setError("API endpoint not found. Please check server configuration.");
+      showToast("API endpoint not found", "error");
+    } else {
+      setError(err?.response?.data?.message || "Failed to load feedbacks.");
+      showToast("Failed to load feedbacks", "error");
+    }
+    
+    setFeedbacks([]);
+    setTopEvents([]);
+  } finally {
+    setLoading(false);
+    setIsRefreshing(false);
+  }
+};
   const handleDelete = async (id) => {
     if (!token) {
       showToast("Please login again", "error");
@@ -284,7 +319,7 @@ const ManageFeedbacks = () => {
           <div className="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 rounded-full bg-[#FFE66D] text-[#1A1A1A] text-xs font-black tracking-widest uppercase">
-                <Sparkles size={14} />
+              
                 Admin Portal
               </div>
               <h1 className="text-4xl font-black text-white leading-tight tracking-tight">

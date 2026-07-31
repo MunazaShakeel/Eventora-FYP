@@ -21,6 +21,9 @@ import {
   Loader,
   Trash2,
   X,
+  Eye,
+  UserPlus,
+  CalendarCheck,
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -57,6 +60,12 @@ const AdminTasks = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [filters, setFilters] = useState({ status: "", search: "", event_id: "" });
+  
+  // New state for modals
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [taskToDelete, setTaskToDelete] = useState(null);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -67,7 +76,7 @@ const AdminTasks = () => {
     setLoading(true);
     setError("");
     try {
-      const [statsRes, progressRes] = await Promise.all([
+      const [statsRes, progressRes] = await axios.all([
         axios.get(`${API_URL}/api/tasks/admin/stats`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -75,8 +84,28 @@ const AdminTasks = () => {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
+      
       setStats(statsRes.data?.data || null);
-      setEventProgress(progressRes.data?.data || []);
+      
+      let progressData = progressRes.data?.data || [];
+      
+      const eventsRes = await axios.get(`${API_URL}/api/events/all`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      let allEvents = Array.isArray(eventsRes.data)
+        ? eventsRes.data
+        : Array.isArray(eventsRes.data?.events)
+        ? eventsRes.data.events
+        : [];
+      const approvedEventIds = new Set(
+        allEvents.filter(e => e.approved === true).map(e => e._id)
+      );
+      
+      progressData = progressData.filter(item => 
+        approvedEventIds.has(item.event?._id)
+      );
+      
+      setEventProgress(progressData);
     } catch (err) {
       console.error("Fetch overview error:", err);
       setError(err?.response?.data?.message || "Failed to load task stats.");
@@ -113,11 +142,13 @@ const AdminTasks = () => {
       const res = await axios.get(`${API_URL}/api/events/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const list = Array.isArray(res.data)
+      let list = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.events)
         ? res.data.events
         : [];
+      
+      list = list.filter(event => event.approved === true);
       setEvents(list);
     } catch (err) {
       console.error("Failed to fetch events:", err);
@@ -129,6 +160,14 @@ const AdminTasks = () => {
       setVolunteerTasks([]);
       return;
     }
+    
+    const event = events.find(e => e._id === eventId);
+    if (!event || !event.approved) {
+      setVolunteerTasks([]);
+      showToast("This event is not approved yet.", "error");
+      return;
+    }
+    
     setLoadingVolunteers(true);
     try {
       const res = await axios.get(
@@ -144,21 +183,34 @@ const AdminTasks = () => {
     }
   };
 
-  const handleDeleteTask = async (taskId) => {
-    if (!window.confirm("Delete this task permanently? This cannot be undone.")) return;
-    setDeletingId(taskId);
+  const handleDeleteTask = async () => {
+    if (!taskToDelete) return;
+    
+    setDeletingId(taskToDelete);
     try {
-      await axios.delete(`${API_URL}/api/tasks/${taskId}`, {
+      await axios.delete(`${API_URL}/api/tasks/${taskToDelete}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setAllTasks((prev) => prev.filter((t) => t._id !== taskId));
+      setAllTasks((prev) => prev.filter((t) => t._id !== taskToDelete));
       showToast("Task deleted successfully.", "success");
       fetchOverview();
+      setShowDeleteModal(false);
+      setTaskToDelete(null);
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to delete task.", "error");
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const openDeleteModal = (taskId) => {
+    setTaskToDelete(taskId);
+    setShowDeleteModal(true);
+  };
+
+  const openViewModal = (task) => {
+    setSelectedTask(task);
+    setShowViewModal(true);
   };
 
   useEffect(() => {
@@ -168,7 +220,7 @@ const AdminTasks = () => {
 
   useEffect(() => {
     if (activeTab === "allTasks") fetchAllTasks();
-  }, [activeTab, filters.status, filters.event_id]);
+  }, [activeTab, filters.status, filters.event_id, filters.search]);
 
   useEffect(() => {
     if (activeTab === "volunteers" && selectedEvent) {
@@ -239,10 +291,44 @@ const AdminTasks = () => {
       day: "numeric",
       month: "short",
       year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const hasActiveFilters = filters.status || filters.search || filters.event_id;
+
+  // Custom loading component with improved animation
+  const LoadingSpinner = () => (
+    <div className="flex items-center justify-center py-16">
+      <div className="relative">
+        <div
+          className="w-12 h-12 rounded-full border-4 animate-spin"
+          style={{ borderColor: COLORS.line, borderTopColor: COLORS.purple }}
+        />
+        <div
+          className="absolute inset-0 w-12 h-12 rounded-full border-4 animate-pulse opacity-50"
+          style={{ borderColor: COLORS.turquoise }}
+        />
+      </div>
+    </div>
+  );
+
+  // Empty state component
+  const EmptyState = ({ icon: Icon, title, message, iconColor = COLORS.purple }) => (
+    <div className="flex flex-col items-center justify-center h-64 text-center">
+      <div
+        className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+        style={{ background: `${iconColor}15` }}
+      >
+        <Icon size={32} style={{ color: iconColor }} />
+      </div>
+      <p className="font-bold text-lg" style={{ color: COLORS.ink }}>{title}</p>
+      <p className="text-sm mt-1 max-w-sm" style={{ color: "#9A90A8" }}>
+        {message}
+      </p>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -250,10 +336,16 @@ const AdminTasks = () => {
         <AdminSidebar />
         <div className="flex-1 md:ml-64 flex items-center justify-center">
           <div className="text-center">
-            <div
-              className="w-14 h-14 rounded-full border-[3px] animate-spin mx-auto mb-4"
-              style={{ borderColor: COLORS.line, borderTopColor: COLORS.purple }}
-            />
+            <div className="relative">
+              <div
+                className="w-14 h-14 rounded-full border-[3px] animate-spin mx-auto mb-4"
+                style={{ borderColor: COLORS.line, borderTopColor: COLORS.purple }}
+              />
+              <div
+                className="absolute inset-0 w-14 h-14 rounded-full border-[3px] animate-pulse mx-auto opacity-50"
+                style={{ borderColor: COLORS.turquoise }}
+              />
+            </div>
             <p className="text-sm font-medium" style={{ color: "#9A90A8" }}>
               Loading task progress…
             </p>
@@ -263,7 +355,7 @@ const AdminTasks = () => {
     );
   }
 
-    return (
+  return (
     <div className="flex min-h-screen" style={{ background: "#f7f4fb" }}>
       <AdminSidebar />
 
@@ -276,7 +368,7 @@ const AdminTasks = () => {
           <div className="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 rounded-full bg-[#FFE66D] text-[#1A1A1A] text-xs font-black tracking-widest uppercase">
-  
+              
                 Admin Portal
               </div>
               <h1 className="text-4xl font-black text-white leading-tight tracking-tight">
@@ -294,11 +386,14 @@ const AdminTasks = () => {
                   { key: "Pending", label: "Pending", value: stats.pendingTasks, color: "#f59e0b", icon: <AlertCircle size={16} /> },
                   { key: "In Progress", label: "In Progress", value: stats.inProgressTasks, color: "#4ECDC4", icon: <Clock size={16} /> },
                   { key: "Completed", label: "Completed", value: stats.completedTasks, color: "#10b981", icon: <CheckCircle size={16} /> },
+                  
                 ].map((s) => (
                   <button
                     key={s.label}
-                    onClick={() => handleStatCardClick(s.key)}
-                    className="flex items-center gap-2.5 px-5 py-2.5 rounded-full transition-all duration-300 hover:scale-105"
+                    onClick={() => s.key === "volunteers" || s.key === "events" ? null : handleStatCardClick(s.key)}
+                    className={`flex items-center gap-2.5 px-5 py-2.5 rounded-full transition-all duration-300 hover:scale-105 ${
+                      s.key === "volunteers" || s.key === "events" ? "cursor-default" : "cursor-pointer"
+                    }`}
                     style={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(12px)" }}
                   >
                     <span className="text-white/80">{s.icon}</span>
@@ -385,18 +480,11 @@ const AdminTasks = () => {
           {activeTab === "overview" && (
             <div className="bg-white rounded-2xl border p-6" style={{ borderColor: COLORS.line }}>
               {eventProgress.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-center">
-                  <div
-                    className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
-                    style={{ background: "#F3ECFA" }}
-                  >
-                    <ListTodo size={26} style={{ color: COLORS.purple }} />
-                  </div>
-                  <p className="font-bold" style={{ color: COLORS.ink }}>No tasks yet</p>
-                  <p className="text-sm mt-1" style={{ color: "#9A90A8" }}>
-                    Tasks assigned by organizers will appear here.
-                  </p>
-                </div>
+                <EmptyState
+                  icon={ListTodo}
+                  title="No tasks yet"
+                  message="Tasks assigned by organizers will appear here once events are approved."
+                />
               ) : (
                 <div className="space-y-5">
                   {eventProgress.map((item) => (
@@ -463,7 +551,7 @@ const AdminTasks = () => {
                     <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "#B3A9C2" }} />
                     <input
                       type="text"
-                      placeholder="Search by task title or description..."
+                      placeholder="Search by task title, description, volunteer, or event name..."
                       value={filters.search}
                       onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 transition"
@@ -519,15 +607,13 @@ const AdminTasks = () => {
 
               <div className="p-6">
                 {loadingTasks ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader size={30} style={{ color: COLORS.purple }} className="animate-spin" />
-                  </div>
+                  <LoadingSpinner />
                 ) : allTasks.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-56 text-center">
-                    <ListTodo size={36} className="mb-3" style={{ color: "#DED4EA" }} />
-                    <p className="font-bold" style={{ color: COLORS.ink }}>No tasks found</p>
-                    <p className="text-sm mt-1" style={{ color: "#9A90A8" }}>Try adjusting your filters.</p>
-                  </div>
+                  <EmptyState
+                    icon={ListTodo}
+                    title="No tasks found"
+                    message="Try adjusting your search or filters to find what you're looking for."
+                  />
                 ) : (
                   <div className="space-y-3 max-h-150 overflow-y-auto pr-2">
                     {allTasks.map((task) => (
@@ -561,19 +647,29 @@ const AdminTasks = () => {
                             </div>
                           </div>
 
-                          <button
-                            onClick={() => handleDeleteTask(task._id)}
-                            disabled={deletingId === task._id}
-                            className="p-2 rounded-lg transition disabled:opacity-50"
-                            style={{ color: COLORS.coral }}
-                            title="Delete task"
-                          >
-                            {deletingId === task._id ? (
-                              <Loader size={18} className="animate-spin" />
-                            ) : (
-                              <Trash2 size={18} />
-                            )}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openViewModal(task)}
+                              className="p-2 rounded-lg transition hover:bg-purple-50"
+                              style={{ color: COLORS.purple }}
+                              title="View task details"
+                            >
+                              <Eye size={18} />
+                            </button>
+                            <button
+                              onClick={() => openDeleteModal(task._id)}
+                              disabled={deletingId === task._id}
+                              className="p-2 rounded-lg transition hover:bg-red-50 disabled:opacity-50"
+                              style={{ color: COLORS.coral }}
+                              title="Delete task"
+                            >
+                              {deletingId === task._id ? (
+                                <Loader size={18} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={18} />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -610,21 +706,20 @@ const AdminTasks = () => {
 
               <div className="p-6">
                 {!selectedEvent ? (
-                  <div className="flex flex-col items-center justify-center h-56 text-center">
-                    <Users size={36} className="mb-3" style={{ color: "#DED4EA" }} />
-                    <p className="font-bold" style={{ color: COLORS.ink }}>Select an event</p>
-                    <p className="text-sm mt-1" style={{ color: "#9A90A8" }}>Choose an event above to view its volunteers.</p>
-                  </div>
+                  <EmptyState
+                    icon={Users}
+                    title="Select an event"
+                    message="Choose an event above to view its volunteers and their assigned tasks."
+                  />
                 ) : loadingVolunteers ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader size={30} style={{ color: COLORS.purple }} className="animate-spin" />
-                  </div>
+                  <LoadingSpinner />
                 ) : volunteerTasks.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-56 text-center">
-                    <Users size={36} className="mb-3" style={{ color: "#DED4EA" }} />
-                    <p className="font-bold" style={{ color: COLORS.ink }}>No volunteers</p>
-                    <p className="text-sm mt-1" style={{ color: "#9A90A8" }}>No volunteers registered for this event yet.</p>
-                  </div>
+                  <EmptyState
+                    icon={Users}
+                    title="No volunteers"
+                    message="No volunteers registered for this event yet."
+                    iconColor="#FF6B6B"
+                  />
                 ) : (
                   <div className="space-y-4">
                     {volunteerTasks.map((item) => {
@@ -745,6 +840,134 @@ const AdminTasks = () => {
           )}
         </div>
       </main>
+
+      {/* ── DELETE CONFIRMATION MODAL ── */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full mx-4 p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "#FDF1F1" }}>
+                <AlertCircle size={20} style={{ color: COLORS.coral }} />
+              </div>
+              <h3 className="text-lg font-bold" style={{ color: COLORS.ink }}>Delete Task</h3>
+            </div>
+            <p className="text-sm" style={{ color: "#5A5164" }}>
+              Are you sure you want to permanently delete this task? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setTaskToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl border text-sm font-bold transition hover:bg-gray-50"
+                style={{ borderColor: COLORS.line, color: "#5A5164" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteTask}
+                disabled={deletingId === taskToDelete}
+                className="px-4 py-2 rounded-xl text-white text-sm font-bold transition hover:shadow-lg disabled:opacity-50"
+                style={{ background: COLORS.coral }}
+              >
+                {deletingId === taskToDelete ? (
+                  <Loader size={16} className="animate-spin" />
+                ) : (
+                  "Delete"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── VIEW TASK MODAL ── */}
+      {showViewModal && selectedTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full mx-4 p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${COLORS.purple}15` }}>
+                  <Eye size={20} style={{ color: COLORS.purple }} />
+                </div>
+                <h3 className="text-lg font-bold" style={{ color: COLORS.ink }}>Task Details</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setSelectedTask(null);
+                }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition"
+              >
+                <X size={18} style={{ color: "#9A90A8" }} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9A90A8" }}>Task Title</label>
+                <p className="font-bold" style={{ color: COLORS.ink }}>{selectedTask.title}</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9A90A8" }}>Description</label>
+                <p className="text-sm" style={{ color: "#5A5164" }}>{selectedTask.description || "No description provided"}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9A90A8" }}>Event</label>
+                  <p className="font-medium" style={{ color: COLORS.ink }}>{selectedTask.event_id?.title || "Unknown"}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9A90A8" }}>Status</label>
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border mt-1 ${getStatusClass(selectedTask.status)}`}>
+                    {getStatusIcon(selectedTask.status)}
+                    {selectedTask.status}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9A90A8" }}>Assigned To</label>
+                <p className="font-medium" style={{ color: COLORS.ink }}>
+                  {selectedTask.assigned_to?.student_id?.name || "Unassigned"}
+                  {selectedTask.assigned_to?.student_id?.email && (
+                    <span className="ml-2 text-xs font-normal" style={{ color: "#9A90A8" }}>
+                      ({selectedTask.assigned_to.student_id.email})
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t" style={{ borderColor: COLORS.line }}>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9A90A8" }}>Created</label>
+                  <p className="text-sm" style={{ color: "#5A5164" }}>{formatDate(selectedTask.createdAt)}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#9A90A8" }}>Last Updated</label>
+                  <p className="text-sm" style={{ color: "#5A5164" }}>{formatDate(selectedTask.updatedAt)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setSelectedTask(null);
+                }}
+                className="px-6 py-2.5 rounded-xl text-white text-sm font-bold transition hover:shadow-lg"
+                style={{ background: "linear-gradient(135deg, #8b4fa2, #6d3483)" }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         @keyframes fadeIn {

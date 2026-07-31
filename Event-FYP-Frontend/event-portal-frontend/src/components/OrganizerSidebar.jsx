@@ -390,32 +390,43 @@ const OrganizerSidebar = () => {
         </div>
       )}
 
-      {/* ── MOBILE BOTTOM NAV ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-40 shadow-lg">
-        {[
-          { label: "Home",   path: "/organizer-dashboard",       icon: "dashboard" },
-          { label: "Events", path: "/organizer/my-events",       icon: "calendar_month" },
-          { label: "New",    path: "/organizer/create-event",    icon: "add_circle" },
-          { label: "Scan",   path: "/organizer/scan-attendance", icon: "qr_code_scanner" },
-          { label: "More",   path: "/organizer/gallery",         icon: "grid_view" },
-        ].map((item) => {
-          const isActive = location.pathname === item.path;
-          return (
-            <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all
-                ${isActive ? "text-[#8b4fa2]" : "text-gray-400"}`}
-            >
-              <span className="material-symbols-outlined text-[22px]"
-                style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                {item.icon}
-              </span>
-              <span className="text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+     {/* ── MOBILE BOTTOM NAV ── */}
+<nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-40 shadow-lg">
+  {[
+    { label: "Home",   path: "/organizer-dashboard",       icon: "dashboard" },
+    { label: "Events", path: "/organizer/my-events",       icon: "calendar_month" },
+    { label: "New",    path: "/organizer/create-event",    icon: "add_circle" },
+    { label: "Scan",   path: "/organizer/scan-attendance", icon: "qr_code_scanner" },
+    { 
+      label: "More", 
+      path: "#", 
+      icon: "grid_view",
+      onClick: () => setSidebarOpen(true)  // ✅ Sidebar open karega
+    },
+  ].map((item) => {
+    const isActive = location.pathname === item.path;
+    return (
+      <button
+        key={item.label}
+        onClick={() => {
+          if (item.onClick) {
+            item.onClick();  // ✅ More button ke liye
+          } else {
+            navigate(item.path);
+          }
+        }}
+        className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all
+          ${isActive ? "text-[#8b4fa2]" : "text-gray-400"}`}
+      >
+        <span className="material-symbols-outlined text-[22px]"
+          style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
+          {item.icon}
+        </span>
+        <span className="text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
+      </button>
+    );
+  })}
+</nav>
 
       <style>{`
         @keyframes slideIn {

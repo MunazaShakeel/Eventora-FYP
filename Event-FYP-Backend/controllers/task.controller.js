@@ -525,3 +525,70 @@ exports.adminGetEventVolunteersTasks = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+// ------------------ EDIT TASK (Organizer/Admin) ------------------
+// controllers/task.controller.js - Add this function
+
+// ------------------ EDIT TASK (Organizer/Admin) ------------------
+// controllers/task.controller.js - Add this function
+
+// ------------------ EDIT TASK (Organizer/Admin) ------------------
+exports.editTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, assigned_to } = req.body;
+
+    // Find the task with event populated
+    const task = await Task.findById(id).populate('event_id', 'organizer_id');
+    if (!task) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Task not found." 
+      });
+    }
+
+    // ─── AUTHORIZATION CHECK ───
+    const isAdmin = req.user.role === 'Admin';
+    const isOrganizer = req.user.role === 'Organizer' && 
+                        task.event_id.organizer_id.toString() === req.user.id;
+
+    if (!isAdmin && !isOrganizer) {
+      return res.status(403).json({ 
+        success: false,
+        message: "You are not authorized to edit this task." 
+      });
+    }
+
+    // ─── UPDATE FIELDS ───
+    if (title !== undefined) task.title = title.trim();
+    if (description !== undefined) task.description = description.trim();
+    if (assigned_to !== undefined) task.assigned_to = assigned_to;
+
+    await task.save();
+
+    // Get updated task with populated fields
+    const updatedTask = await Task.findById(id)
+      .populate({
+        path: 'assigned_to',
+        populate: { 
+          path: 'student_id', 
+          select: 'name email department' 
+        }
+      })
+      .populate('event_id', 'title start_date');
+
+    return res.status(200).json({
+      success: true,
+      message: "Task updated successfully.",
+      task: updatedTask,
+    });
+
+  } catch (err) {
+    console.error("editTask error:", err);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Failed to update task." 
+    });
+  }
+};

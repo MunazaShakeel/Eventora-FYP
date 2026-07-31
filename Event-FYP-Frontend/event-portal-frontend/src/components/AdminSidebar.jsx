@@ -24,6 +24,7 @@ const AdminSidebar = () => {
     { label: "Manage Events", path: "/admin/events", icon: "event" },
     { label: "Manage Students", path: "/admin/students", icon: "school" },
     { label: "Manage Organizers", path: "/admin/organizers", icon: "badge" },
+    { label: "Attendance Reports", path: "/admin/attendance-reports", icon: "bar_chart" },
     { label: "Task Management", path: "/admin/manage-tasks", icon: "task" },
     { label: "Feedback", path: "/admin/feedback", icon: "rate_review" },
     { label: "Gallery", path: "/admin/gallery", icon: "photo_library" },
@@ -286,7 +287,7 @@ const AdminSidebar = () => {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+            <div className="absolute right-0 top-11 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
                 <p className="text-sm font-black text-gray-800">Notifications</p>
                 <div className="flex items-center gap-2">
@@ -355,13 +356,12 @@ const AdminSidebar = () => {
       )}
 
       {/* ── MOBILE BOTTOM NAV ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-40 shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-1 z-40 shadow-lg">
         {[
           { label: "Home", path: "/admin-dashboard", icon: "dashboard" },
           { label: "Events", path: "/admin/events", icon: "event" },
           { label: "Students", path: "/admin/students", icon: "school" },
-          { label: "Organizers", path: "/admin/organizers", icon: "badge" },
-          { label: "More", path: "/admin/feedback", icon: "grid_view" },
+          { label: "Reports", path: "/admin/attendance-reports", icon: "bar_chart" },
         ].map((item) => {
           const isActive = location.pathname === item.path;
           return (
@@ -370,13 +370,22 @@ const AdminSidebar = () => {
               onClick={() => navigate(item.path)}
               className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all ${isActive ? "text-[#8b4fa2]" : "text-gray-400"}`}
             >
-              <span className="material-symbols-outlined text-[22px]" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
+              <span className="material-symbols-outlined text-[20px] sm:text-[22px]" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
                 {item.icon}
               </span>
-              <span className="text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
+              <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
             </button>
           );
         })}
+
+        {/* "More" poora sidebar menu kholta hai */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all ${sidebarOpen ? "text-[#8b4fa2]" : "text-gray-400"}`}
+        >
+          <span className="material-symbols-outlined text-[20px] sm:text-[22px]">grid_view</span>
+          <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-tight">More</span>
+        </button>
       </nav>
 
       <style>{`

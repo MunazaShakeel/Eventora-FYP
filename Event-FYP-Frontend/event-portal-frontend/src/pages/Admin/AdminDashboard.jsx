@@ -1,15 +1,19 @@
 import React, { useEffect, useState, useRef } from "react";
 import AdminSidebar from "../../components/AdminSidebar";
 import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import DownloadCSVAdvanced from "../../components/DownloadCSVAdvanced"; // ✅ Import
 
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
   RadialBarChart, RadialBar,
 } from "recharts";
-import axios from "axios";
 
-/* ─── Animated Counter (same as OrganizerDashboard) ─── */
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+/* ─── Animated Counter ─── */
 const useCounter = (target, duration = 1400, start = false) => {
   const [count, setCount] = useState(0);
   useEffect(() => {
@@ -27,7 +31,7 @@ const useCounter = (target, duration = 1400, start = false) => {
   return count;
 };
 
-/* ─── Stat Card (same pattern as OrganizerDashboard) ─── */
+/* ─── Stat Card ─── */
 const StatCard = ({ label, value, subStats, color, bg, icon, delay, animate }) => {
   const count = useCounter(value, 1400, animate);
   return (
@@ -91,23 +95,205 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const notifRef = useRef(null);
   
-const { token } = useAuth();
-const notifRef = useRef(null);
-const [notifications, setNotifications] = useState([]);
-const [notifOpen, setNotifOpen] = useState(false);
-const [unreadCount, setUnreadCount] = useState(0);
-
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  
   const [adminStats, setAdminStats] = useState(null);
   const [dashStats, setDashStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [animate, setAnimate] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
   const [greeting, setGreeting] = useState("");
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
-  /* Live clock + greeting */
+  // ── Prepare data for CSV export ──
+  const getExportData = () => {
+    const data = [];
+    
+    // Add events data
+    if (dashStats?.events) {
+      data.push({
+        "Category": "Total Events",
+        "Value": dashStats.events.totalEvents || 0
+      });
+      data.push({
+        "Category": "Approved Events",
+        "Value": dashStats.events.approvedEvents || 0
+      });
+      data.push({
+        "Category": "Pending Events",
+        "Value": dashStats.events.rejectedEvents || 0
+      });
+    }
+    
+    // Add registration data
+    if (dashStats?.registrations) {
+      data.push({
+        "Category": "Total Registrations",
+        "Value": dashStats.registrations.totalRegistrations || 0
+      });
+      data.push({
+        "Category": "Present",
+        "Value": dashStats.registrations.presentCount || 0
+      });
+      data.push({
+        "Category": "Absent",
+        "Value": dashStats.registrations.absentCount || 0
+      });
+    }
+    
+    // Add task data
+    if (dashStats?.tasks) {
+      data.push({
+        "Category": "Completed Tasks",
+        "Value": dashStats.tasks.completedTasks || 0
+      });
+      data.push({
+        "Category": "Pending Tasks",
+        "Value": dashStats.tasks.pendingTasks || 0
+      });
+    }
+    
+    // Add user data
+    data.push({
+      "Category": "Total Students",
+      "Value": adminStats?.totalStudents || 0
+    });
+    data.push({
+      "Category": "Total Organizers",
+      "Value": adminStats?.totalOrganizers || 0
+    });
+    
+    // Add certificates
+    data.push({
+      "Category": "Certificates Issued",
+      "Value": dashStats?.totalCertificates || 0
+    });
+    
+    return data;
+  };
+
+  // ── Custom headers for CSV ──
+  const customHeaders = ["Metric", "Value"];
+  
+  const mapData = (item) => {
+    return [item.Category, item.Value];
+  };
+
+  // ── Notification Functions ──
+  const getIconByType = (type) => {
+    switch (type) {
+      case "event": return "event";
+      case "certificate": return "workspace_premium";
+      case "attendance": return "qr_code_scanner";
+      case "task": return "task_alt";
+      default: return "notifications";
+    }
+  };
+
+  const getColorByType = (type) => {
+    switch (type) {
+      case "event": return "#8b4fa2";
+      case "certificate": return "#FFE66D";
+      case "attendance": return "#4ECDC4";
+      case "task": return "#FF6B6B";
+      default: return "#8b4fa2";
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch (type) {
+      case "event": return "#f5eefa";
+      case "certificate": return "#fff9e6";
+      case "attendance": return "#e6faf8";
+      case "task": return "#ffe6e6";
+      default: return "#f5eefa";
+    }
+  };
+
+  const fetchNotifications = async () => {
+    if (!token) return;
+    setLoadingNotifs(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/notifications`, { headers });
+      if (response.data.success) {
+        const notifs = response.data.notifications.map(notif => ({
+          id: notif._id,
+          _id: notif._id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          isRead: notif.isRead,
+          time: notif.createdAt ? new Date(notif.createdAt).toLocaleString() : "",
+          icon: getIconByType(notif.type),
+          color: getColorByType(notif.type),
+          bg: getBgByType(notif.type),
+        }));
+        setNotifications(notifs);
+        setUnreadCount(response.data.unreadCount);
+      }
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/notifications/${notificationId}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotifications(prev =>
+        prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Error marking as read:", err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/notifications/read-all`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error("Error marking all as read:", err);
+    }
+  };
+
+  const deleteNotification = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.delete(`${API_URL}/notifications/${notificationId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const deleted = notifications.find(n => n._id === notificationId);
+      setNotifications(prev => prev.filter(n => n._id !== notificationId));
+      if (!deleted?.isRead) setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+    }
+  };
+
+  // ── Live clock + greeting ──
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Good Morning");
@@ -124,73 +310,131 @@ const [unreadCount, setUnreadCount] = useState(0);
     return () => clearInterval(id);
   }, []);
 
-  /* Data fetch */
-  useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        const [adminRes, dashRes] = await Promise.all([
-          axios.get("http://localhost:5000/api/admin/dashboard", { headers }),
-          axios.get("http://localhost:5000/api/dashboard", { headers }),
-        ]);
-        setAdminStats(adminRes.data);
-        setDashStats(dashRes.data);
-        setTimeout(() => setAnimate(true), 200);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load dashboard data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
-  }, [token]);
-
-  // ── Notifications Fetch ──
-useEffect(() => {
-  if (!token) return;
-  const fetchNotifs = async () => {
+  // ── Data fetch ──
+  const fetchAllData = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const [eventsRes, usersRes] = await Promise.all([
-        axios.get("http://localhost:5000/api/admin/dashboard", { headers }),
-        axios.get("http://localhost:5000/api/dashboard", { headers }),
+      const [adminRes, dashRes] = await Promise.all([
+        axios.get(`${API_URL}/admin/dashboard`, { headers }),
+        axios.get(`${API_URL}/dashboard`, { headers }),
       ]);
-      const notifs = [];
-      const pendingEvents = (eventsRes.data?.pendingEvents || []);
-      pendingEvents.slice(0, 3).forEach((ev) => {
-        notifs.push({
-          id: `ev-${ev._id}`, icon: "pending_actions", color: "#f59e0b", bg: "#fffbeb",
-          message: `"${ev.title}" is waiting for approval`,
-          time: ev.createdAt ? new Date(ev.createdAt).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "",
+      setAdminStats(adminRes.data);
+      setDashStats(dashRes.data);
+      
+      // Generate recent activities from real data
+      const activities = [];
+      
+      if (adminRes.data?.recentActivities) {
+        adminRes.data.recentActivities.forEach(activity => {
+          activities.push({
+            id: activity._id || `act-${Date.now()}`,
+            type: activity.type || 'system',
+            message: activity.message || 'System activity',
+            time: activity.createdAt || new Date().toISOString(),
+            icon: activity.icon || 'info',
+            color: activity.color || '#9B59B6'
+          });
         });
-      });
-      const totalStudents = eventsRes.data?.totalStudents ?? 0;
-      const totalOrganizers = eventsRes.data?.totalOrganizers ?? 0;
-      notifs.push({
-        id: "users-summary", icon: "group", color: "#9B59B6", bg: "#f5eefa",
-        message: `${totalStudents} students & ${totalOrganizers} organizers on platform`,
-        time: "Now",
-      });
-      setNotifications(notifs);
-      setUnreadCount(notifs.length);
-    } catch (err) { console.error(err); }
+      } else {
+        const now = new Date();
+        
+        if (adminRes.data?.pendingEvents?.length) {
+          adminRes.data.pendingEvents.slice(0, 2).forEach(ev => {
+            activities.push({
+              id: `ev-${ev._id}`,
+              type: 'event_pending',
+              message: `Event "${ev.title}" is pending approval`,
+              time: ev.createdAt || new Date(now.getTime() - Math.random() * 86400000 * 2).toISOString(),
+              icon: 'event_note',
+              color: '#f59e0b'
+            });
+          });
+        }
+        
+        if (adminRes.data?.totalStudents > 0) {
+          activities.push({
+            id: 'student-reg',
+            type: 'student_registered',
+            message: `${adminRes.data.totalStudents} students registered on platform`,
+            time: new Date(now.getTime() - 3600000 * 2).toISOString(),
+            icon: 'school',
+            color: '#9B59B6'
+          });
+        }
+        
+        if (adminRes.data?.totalOrganizers > 0) {
+          activities.push({
+            id: 'organizer-reg',
+            type: 'organizer_registered',
+            message: `${adminRes.data.totalOrganizers} organizers registered`,
+            time: new Date(now.getTime() - 3600000 * 5).toISOString(),
+            icon: 'group',
+            color: '#4ECDC4'
+          });
+        }
+        
+        if (dashRes.data?.totalCertificates > 0) {
+          activities.push({
+            id: 'cert-issued',
+            type: 'certificate_issued',
+            message: `${dashRes.data.totalCertificates} certificates issued`,
+            time: new Date(now.getTime() - 86400000).toISOString(),
+            icon: 'workspace_premium',
+            color: '#FFE66D'
+          });
+        }
+        
+        if (dashRes.data?.tasks?.completedTasks > 0) {
+          activities.push({
+            id: 'task-complete',
+            type: 'task_completed',
+            message: `${dashRes.data.tasks.completedTasks} tasks completed`,
+            time: new Date(now.getTime() - 3600000 * 12).toISOString(),
+            icon: 'task_alt',
+            color: '#4ECDC4'
+          });
+        }
+      }
+      
+      setRecentActivities(activities.slice(0, 10));
+      
+      if (dashRes.data?.events?.upcomingEvents) {
+        setUpcomingEvents(dashRes.data.events.upcomingEvents.slice(0, 5));
+      }
+      
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load dashboard data.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
-  fetchNotifs();
-  const interval = setInterval(fetchNotifs, 30000);
-  return () => clearInterval(interval);
-}, [token]);
 
-// ── Outside Click ──
-useEffect(() => {
-  const handleClick = (e) => {
-    if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+  useEffect(() => {
+    fetchAllData();
+    fetchNotifications();
+    setTimeout(() => setAnimate(true), 200);
+    
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchAllData();
   };
-  document.addEventListener("mousedown", handleClick);
-  return () => document.removeEventListener("mousedown", handleClick);
-}, []);
 
-  /* ── Loading ── */
+  // ── Click outside to close notification dropdown ──
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // ── Loading ──
   if (loading) return (
     <div className="flex min-h-screen bg-gray-50">
       <AdminSidebar />
@@ -207,7 +451,6 @@ useEffect(() => {
     </div>
   );
 
-  /* ── Error ── */
   if (error) return (
     <div className="flex min-h-screen bg-gray-50">
       <AdminSidebar />
@@ -217,7 +460,7 @@ useEffect(() => {
             <span className="material-symbols-outlined text-4xl text-red-500">error</span>
           </div>
           <p className="text-red-500 font-semibold">{error}</p>
-          <button onClick={() => window.location.reload()}
+          <button onClick={handleRefresh}
             className="mt-4 px-4 py-2 bg-[#9B59B6] text-white rounded-xl text-sm font-semibold hover:bg-[#7a3f91] transition-colors">
             Retry
           </button>
@@ -227,9 +470,9 @@ useEffect(() => {
   );
 
   /* ── Derived data ── */
-  const ev  = dashStats?.events        ?? {};
-  const reg = dashStats?.registrations ?? {};
-  const tsk = dashStats?.tasks         ?? {};
+  const ev = dashStats?.events || {};
+  const reg = dashStats?.registrations || {};
+  const tsk = dashStats?.tasks || {};
 
   const statCards = [
     {
@@ -242,7 +485,7 @@ useEffect(() => {
       icon: "event", color: "#4ECDC4", bg: "#e6fafa", delay: 100,
       subStats: [
         { label: `${ev.approvedEvents ?? 0} Approved`, color: "#10b981", bg: "#d1fae5" },
-        { label: `${ev.rejectedEvents ?? 0} Pending`,  color: "#f59e0b", bg: "#fed7aa" },
+        { label: `${ev.rejectedEvents ?? 0} Pending`, color: "#f59e0b", bg: "#fed7aa" },
       ],
     },
     {
@@ -250,7 +493,7 @@ useEffect(() => {
       icon: "app_registration", color: "#FF6B6B", bg: "#fff0f0", delay: 200,
       subStats: [
         { label: `${reg.presentCount ?? 0} Present`, color: "#10b981", bg: "#d1fae5" },
-        { label: `${reg.absentCount  ?? 0} Absent`,  color: "#ef4444", bg: "#fee2e2" },
+        { label: `${reg.absentCount ?? 0} Absent`, color: "#ef4444", bg: "#fee2e2" },
       ],
     },
     {
@@ -264,17 +507,21 @@ useEffect(() => {
 
   const eventsPieData = [
     { name: "Approved", value: ev.approvedEvents ?? 0 },
-    { name: "Pending",  value: ev.rejectedEvents ?? 0 },
+    { name: "Pending", value: ev.rejectedEvents ?? 0 },
   ];
   const PIE_COLORS = ["#9B59B6", "#FF6B6B"];
 
-  const attendanceBarData = [{ name: "Attendance", Present: reg.presentCount ?? 0, Absent: reg.absentCount ?? 0 }];
-  const tasksBarData      = [{ name: "Tasks", Completed: tsk.completedTasks ?? 0, Pending: tsk.pendingTasks ?? 0 }];
+  const attendanceBarData = [{ 
+    name: "Attendance", 
+    Present: reg.presentCount ?? 0, 
+    Absent: reg.absentCount ?? 0 
+  }];
+  
+  const tasksBarData = [{ name: "Tasks", Completed: tsk.completedTasks ?? 0, Pending: tsk.pendingTasks ?? 0 }];
 
   const usersRadialData = [
-    { name: "Students",   value: adminStats?.totalStudents   ?? 0, fill: "#9B59B6" },
+    { name: "Students", value: adminStats?.totalStudents ?? 0, fill: "#9B59B6" },
     { name: "Organizers", value: adminStats?.totalOrganizers ?? 0, fill: "#4ECDC4" },
-    { name: "Admins",     value: adminStats?.totalAdmins     ?? 0, fill: "#FF6B6B" },
   ];
 
   const progressItems = [
@@ -303,6 +550,17 @@ useEffect(() => {
     "linear-gradient(135deg, #94a3b8, #64748b)",
     "linear-gradient(135deg, #b45309, #92400e)",
     "linear-gradient(135deg, #9B59B6, #6d28d9)",
+  ];
+
+  const quickActions = [
+    { label: "Manage Events", icon: "event", color: "#9B59B6", bg: "#f5eefa", path: "/admin/events" },
+    { label: "Manage Students", icon: "school", color: "#4ECDC4", bg: "#e6fafa", path: "/admin/students" },
+    { label: "Manage Organizers", icon: "badge", color: "#FF6B6B", bg: "#fff0f0", path: "/admin/organizers" },
+    {label:  "Generate Reports", icon: "analytics", color: "#4B5563", bg: "#f3f4f6", path: "/admin/attendance-reports" },
+    { label: "Task Management", icon: "task", color: "#f59e0b", bg: "#fff8e6", path: "/admin/manage-tasks" },
+    { label: "Gallery", icon: "photo_library", color: "#10b981", bg: "#e6faf0", path: "/admin/gallery" },
+    { label: "Certificates", icon: "workspace_premium", color: "#FFE66D", bg: "#fffce8", path: "/admin/certificates" },
+    { label: "Feedback", icon: "rate_review", color: "#8b4fa2", bg: "#f5eefa", path: "/admin/feedback" },
   ];
 
   return (
@@ -355,88 +613,163 @@ useEffect(() => {
                 <p className="text-sm text-gray-400 mt-2">Monitor, manage, and keep campus running smoothly.</p>
               </div>
 
-           {/* Live Clock + Bell */}
-<div className="flex items-center gap-4">
-
-  {/* 🔔 Notification Bell */}
-  <div className="relative hidden md:block" ref={notifRef}>
-    <button
-      onClick={() => { setNotifOpen(!notifOpen); setUnreadCount(0); }}
-      className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition relative"
-    >
-      <span className="material-symbols-outlined text-[22px] text-gray-600">notifications</span>
-      {unreadCount > 0 && (
-        <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-          {unreadCount > 9 ? "9+" : unreadCount}
-        </span>
-      )}
-    </button>
-
-    {notifOpen && (
-      <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-sm font-black text-gray-800">Notifications</p>
-          <span className="text-[10px] font-bold text-[#9B59B6] bg-purple-50 px-2 py-0.5 rounded-full">
-            {notifications.length} new
-          </span>
-        </div>
-        {notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-            <span className="material-symbols-outlined text-[36px] mb-2">notifications_none</span>
-            <p className="text-sm font-semibold">No notifications</p>
-          </div>
-        ) : (
-          <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-            {notifications.map((n) => (
-              <div key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                  style={{ backgroundColor: n.bg }}>
-                  <span className="material-symbols-outlined text-[16px]"
-                    style={{ color: n.color, fontVariationSettings: "'FILL' 1" }}>
-                    {n.icon}
+              <div className="flex items-center gap-4">
+                {/* Refresh Button */}
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition relative disabled:opacity-50"
+                  title="Refresh Dashboard"
+                >
+                  <span className={`material-symbols-outlined text-[22px] text-gray-600 ${refreshing ? 'animate-spin' : ''}`}>
+                    refresh
                   </span>
+                </button>
+
+                {/* ✅ EXPORT BUTTON - PROPER POSITION */}
+                <DownloadCSVAdvanced
+                  data={getExportData()}
+                  filename="dashboard_report"
+                  buttonText="Export"
+                  buttonIcon="spreadsheet"
+                  customHeaders={["Metric", "Value"]}
+                  mapData={mapData}
+                  size="sm"
+                  className="shadow-[0_4px_15px_rgba(139,79,162,0.25)] hover:shadow-[0_4px_20px_rgba(139,79,162,0.4)]"
+                />
+
+                {/* Notification Button */}
+                <div className="relative hidden md:block" ref={notifRef}>
+                  <button
+                    onClick={() => {
+                      setNotifOpen(!notifOpen);
+                      if (!notifOpen && unreadCount > 0) {
+                        markAllAsRead();
+                      }
+                    }}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition relative"
+                  >
+                    <span className="material-symbols-outlined text-[22px] text-gray-600">notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notifOpen && (
+                    <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
+                        <p className="text-sm font-black text-gray-800">Notifications</p>
+                        <div className="flex items-center gap-2">
+                          {unreadCount > 0 && (
+                            <button onClick={markAllAsRead} className="text-[10px] font-bold text-[#8b4fa2] bg-purple-100 px-2 py-0.5 rounded-full hover:bg-purple-200 transition">
+                              Mark all read
+                            </button>
+                          )}
+                          <span className="text-[10px] font-bold text-[#8b4fa2] bg-purple-50 px-2 py-0.5 rounded-full">
+                            {notifications.filter(n => !n.isRead).length} new
+                          </span>
+                        </div>
+                      </div>
+                      {loadingNotifs ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      ) : notifications.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                          <span className="material-symbols-outlined text-[36px] mb-2">notifications_none</span>
+                          <p className="text-sm font-semibold">No notifications</p>
+                        </div>
+                      ) : (
+                        <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+                          {notifications.map((n) => (
+                            <div
+                              key={n.id}
+                              className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? "bg-purple-50/30" : ""}`}
+                              onClick={() => !n.isRead && markAsRead(n._id)}
+                            >
+                              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: n.bg }}>
+                                <span className="material-symbols-outlined text-[16px]" style={{ color: n.color, fontVariationSettings: "'FILL' 1" }}>
+                                  {n.icon}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-gray-700 leading-snug">{n.message}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
+                              </div>
+                              <button onClick={(e) => { e.stopPropagation(); deleteNotification(n._id); }} className="text-gray-300 hover:text-red-400 transition">
+                                <span className="material-symbols-outlined text-[14px]">close</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-700 leading-snug">{n.message}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
+
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-3 bg-white rounded-2xl px-6 py-3 shadow-lg border border-gray-100">
+                    <div className="relative">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping opacity-75" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Live</p>
+                      <p className="text-xl font-black text-gray-800 leading-tight font-mono">{currentTime}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 font-medium">{currentDate}</p>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-    )}
-  </div>
+            </div>
 
-  {/* Live Clock — same as before */}
-  <div className="flex flex-col items-end gap-2">
-    <div className="flex items-center gap-3 bg-white rounded-2xl px-6 py-3 shadow-lg border border-gray-100">
-      <div className="relative">
-        <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-        <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping opacity-75" />
-      </div>
-      <div className="text-right">
-        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Live</p>
-        <p className="text-xl font-black text-gray-800 leading-tight font-mono">{currentTime}</p>
-      </div>
-    </div>
-    <p className="text-xs text-gray-400 font-medium">{currentDate}</p>
-  </div>
-  </div>
-</div>
-            {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-8">
               {statCards.map((card, i) => <StatCard key={i} {...card} animate={animate} />)}
             </div>
           </div>
+          
+
+          {/* ── QUICK ACTIONS ── */}
+<div className="mt-8 mb-10">
+  <h3 className="text-sm font-bold text-gray-600 mb-4 flex items-center gap-2">
+    <span className="material-symbols-outlined text-[#9B59B6] text-lg">bolt</span>
+    Quick Actions
+  </h3>
+
+  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-3 justify-items-center">
+    {quickActions.map((action, index) => (
+      <button
+        key={index}
+        onClick={() => navigate(action.path)}
+        className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 flex flex-col items-center gap-2 group w-full max-w-22.5"
+        style={{
+          animation: `slideUp 0.5s ease forwards ${index * 50 + 400}ms`,
+          opacity: 0,
+        }}
+      >
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
+          style={{ backgroundColor: action.bg }}
+        >
+          <span className="material-symbols-outlined text-xl" style={{ color: action.color }}>
+            {action.icon}
+          </span>
+        </div>
+        <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">
+          {action.label}
+        </span>
+      </button>
+    ))}
+  </div>
+</div>
 
           {/* ── ROW 1: Pie + Attendance + Progress ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4 mb-6">
 
-            {/* Left: Pie + Attendance stacked */}
             <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-              {/* Events Pie */}
               <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
                 style={{ animation: "slideUp 0.5s ease forwards 350ms", opacity: 0 }}>
                 <div className="flex items-center justify-between mb-4">
@@ -467,7 +800,6 @@ useEffect(() => {
                 </div>
               </div>
 
-              {/* Attendance Bar */}
               <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
                 style={{ animation: "slideUp 0.5s ease forwards 400ms", opacity: 0 }}>
                 <div className="flex items-center justify-between mb-4">
@@ -477,21 +809,27 @@ useEffect(() => {
                   </div>
                   <span className="material-symbols-outlined text-[#4ECDC4]" style={{ fontVariationSettings: "'FILL' 1" }}>fact_check</span>
                 </div>
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={attendanceBarData} barSize={36}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                    <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
-                    <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
-                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f5eefa" }} />
-                    <Legend wrapperStyle={{ fontSize: 11, color: "#9ca3af" }} />
-                    <Bar dataKey="Present" fill="#9B59B6" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="Absent"  fill="#FF6B6B" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {attendanceBarData[0].Present === 0 && attendanceBarData[0].Absent === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                    <span className="material-symbols-outlined text-4xl mb-2 opacity-50">no_meeting_room</span>
+                    <p className="text-sm font-semibold">No attendance data</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={attendanceBarData} barSize={36}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
+                      <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f5eefa" }} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: "#9ca3af" }} />
+                      <Bar dataKey="Present" fill="#9B59B6" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="Absent" fill="#FF6B6B" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
-            {/* Progress Panel */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
               style={{ animation: "slideUp 0.5s ease forwards 450ms", opacity: 0 }}>
               <div className="flex items-center justify-between mb-5">
@@ -541,7 +879,6 @@ useEffect(() => {
           {/* ── ROW 2: Tasks + Radial + Top Rated ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* Tasks Bar */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
               style={{ animation: "slideUp 0.5s ease forwards 500ms", opacity: 0 }}>
               <div className="flex items-center justify-between mb-4">
@@ -559,33 +896,43 @@ useEffect(() => {
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f5eefa" }} />
                   <Legend wrapperStyle={{ fontSize: 11, color: "#9ca3af" }} />
                   <Bar dataKey="Completed" fill="#4ECDC4" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="Pending"   fill="#FFE66D" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Pending" fill="#FFE66D" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* User Distribution Radial */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
               style={{ animation: "slideUp 0.5s ease forwards 580ms", opacity: 0 }}>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-base font-black text-gray-800">👥 Users</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Students · Organizers · Admins</p>
+                  <h3 className="text-base font-black text-gray-800">👥 Users Distribution</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Students · Organizers</p>
                 </div>
                 <span className="material-symbols-outlined text-[#4ECDC4]" style={{ fontVariationSettings: "'FILL' 1" }}>donut_large</span>
               </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <RadialBarChart cx="50%" cy="50%" innerRadius="20%" outerRadius="90%"
+              
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-purple-50 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-500 font-medium">Students</p>
+                  <p className="text-2xl font-black text-[#9B59B6]">{adminStats?.totalStudents ?? 0}</p>
+                </div>
+                <div className="bg-teal-50 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-500 font-medium">Organizers</p>
+                  <p className="text-2xl font-black text-[#4ECDC4]">{adminStats?.totalOrganizers ?? 0}</p>
+                </div>
+              </div>
+              
+              <ResponsiveContainer width="100%" height={160}>
+                <RadialBarChart cx="50%" cy="50%" innerRadius="20%" outerRadius="85%"
                   data={usersRadialData} startAngle={180} endAngle={0}>
                   <RadialBar minAngle={15} dataKey="value" clockWise />
                   <Tooltip content={<CustomTooltip />} />
-                  <Legend iconSize={10} layout="vertical" verticalAlign="middle" align="right"
-                    wrapperStyle={{ fontSize: 11, color: "#6b7280" }} />
+                  <Legend iconSize={10} layout="horizontal" verticalAlign="bottom" align="center"
+                    wrapperStyle={{ fontSize: 10, color: "#6b7280", paddingTop: 8 }} />
                 </RadialBarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Top Rated Events */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
               style={{ animation: "slideUp 0.5s ease forwards 660ms", opacity: 0 }}>
               <div className="flex items-center justify-between mb-5">
@@ -614,15 +961,111 @@ useEffect(() => {
                           {i + 1}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-700 truncate max-w-27.5">
-                            {ev.title || ev.eventTitle || `Event #${ev._id?.toString().slice(-6)}`}
+                          <p className="text-sm font-bold text-gray-700 truncate max-w-45">
+                            {ev.title || ev.eventTitle || ev._id?.toString().slice(-6) || 'Unknown Event'}
                           </p>
-                          <p className="text-[10px] text-gray-400">{ev.totalFeedbacks} reviews</p>
+                          <p className="text-[10px] text-gray-400">{ev.totalFeedbacks || 0} reviews</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full shadow-sm shrink-0">
                         <span className="material-symbols-outlined text-sm text-amber-400" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                        <span className="text-sm font-black text-amber-600">{ev.avgRating?.toFixed(1)}</span>
+                        <span className="text-sm font-black text-amber-600">{typeof ev.avgRating === 'number' ? ev.avgRating.toFixed(1) : '0.0'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── ROW 3: Recent Activities + Upcoming Events ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+              style={{ animation: "slideUp 0.5s ease forwards 720ms", opacity: 0 }}>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-base font-black text-gray-800">🔄 Recent Activities</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Latest system updates</p>
+                </div>
+                <span className="material-symbols-outlined text-[#4ECDC4]" style={{ fontVariationSettings: "'FILL' 1" }}>history</span>
+              </div>
+
+              {recentActivities.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                  <span className="material-symbols-outlined text-4xl mb-2 opacity-50">inbox</span>
+                  <p className="text-sm font-semibold">No recent activities</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {recentActivities.map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${activity.color}15` }}>
+                        <span className="material-symbols-outlined text-sm" style={{ color: activity.color }}>
+                          {activity.icon}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-700">{activity.message}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {new Date(activity.time).toLocaleString('en-PK', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+              style={{ animation: "slideUp 0.5s ease forwards 780ms", opacity: 0 }}>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-base font-black text-gray-800">📅 Upcoming Events</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Next approved events</p>
+                </div>
+                <span className="material-symbols-outlined text-[#FF6B6B]" style={{ fontVariationSettings: "'FILL' 1" }}>event_upcoming</span>
+              </div>
+
+              {upcomingEvents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                  <span className="material-symbols-outlined text-4xl mb-2 opacity-50">event_busy</span>
+                  <p className="text-sm font-semibold">No upcoming events</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {upcomingEvents.map((event) => (
+                    <div key={event._id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-purple-50">
+                        <span className="material-symbols-outlined text-[#9B59B6] text-lg">event</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-700">{event.title}</p>
+                        <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[10px]">calendar_today</span>
+                            {new Date(event.start_date).toLocaleDateString('en-PK', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </span>
+                          <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[10px]">location_on</span>
+                            {event.venue || 'TBA'}
+                          </span>
+                          {event.organizer_id?.name && (
+                            <span className="text-[10px] text-gray-400">
+                              • {event.organizer_id.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -631,6 +1074,7 @@ useEffect(() => {
             </div>
 
           </div>
+
         </main>
       </div>
     </>

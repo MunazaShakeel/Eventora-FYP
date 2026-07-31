@@ -3,8 +3,8 @@ import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
 import OrganizerSidebar from "../../components/OrganizerSidebar";
 
-// ✅ Use environment variable for API URL
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// ✅ FIX: API URL with /api
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // Avatar gradients
 const AVATAR_GRADS = [
@@ -31,6 +31,12 @@ const OrganizerCertificates = () => {
   const [deleting, setDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
   const [previewCert, setPreviewCert] = useState(null);
+  const [selectedType, setSelectedType] = useState("Participation");
+const [activeTab, setActiveTab] = useState("all"); // "all" | "students" | "volunteers"
+const [selectedIds, setSelectedIds] = useState(new Set());
+const [bulkIssuing, setBulkIssuing] = useState(false);
+
+const CERT_TYPES = ['Participation', 'Achievement', 'Excellence', 'Volunteer', 'Winner', 'Technical', 'Non-Technical', 'Workshop', 'Seminar', 'Sports', 'Cultural'];
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -47,7 +53,7 @@ const OrganizerCertificates = () => {
 
       try {
         setLoadingEvents(true);
-        const res = await axios.get(`${API_URL}/api/events/organizer`, {
+        const res = await axios.get(`${API_URL}/events/organizer`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -78,10 +84,11 @@ const OrganizerCertificates = () => {
       setLoadingStudents(true);
       try {
         const [regRes, certRes] = await Promise.all([
-          axios.get(`${API_URL}/api/registrations/events/${selectedEvent}`, {
+          axios.get(`${API_URL}/registrations/events/${selectedEvent}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get(`${API_URL}/api/certificates?event_id=${selectedEvent}`, {
+          // ✅ FIX: Use my-events endpoint
+          axios.get(`${API_URL}/certificates/my-events`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
@@ -117,23 +124,17 @@ const OrganizerCertificates = () => {
     
     try {
       await axios.post(
-        `${API_URL}/api/certificates/issue`,
+        `${API_URL}/certificates/issue`,
         {
           student_id: student_id,
           event_id: selectedEvent,
-          certificate_type: "Participation"
+          certificate_type: selectedType   // 👈 CHANGED: ab dropdown se aayega
         },
-        { 
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          } 
-        }
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
       );
       
       showToast("✅ Certificate issued successfully!", "success");
-      
-      const certRes = await axios.get(`${API_URL}/api/certificates?event_id=${selectedEvent}`, {
+      const certRes = await axios.get(`${API_URL}/certificates/my-events`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setIssuedCerts(certRes.data?.data || []);
@@ -144,7 +145,59 @@ const OrganizerCertificates = () => {
     } finally {
       setIssuingId(null);
     }
-  };
+};
+
+
+
+const handleBulkIssue = async (target) => {
+    if (!token || !selectedEvent) return;
+    
+    setBulkIssuing(true);
+    try {
+      const payload = { event_id: selectedEvent, certificate_type: selectedType };
+      
+      if (target === 'selected') {
+        if (selectedIds.size === 0) {
+          showToast("Pehle students select karein", "error");
+          setBulkIssuing(false);
+          return;
+        }
+        payload.student_ids = Array.from(selectedIds);
+      } else {
+        payload.target = target; // 'All' | 'Student' | 'Volunteer'
+      }
+      
+      const res = await axios.post(`${API_URL}/certificates/issue-bulk`, payload, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      
+      showToast(res.data?.message || "Bulk certificates issued!", "success");
+      setSelectedIds(new Set());
+      
+      const certRes = await axios.get(`${API_URL}/certificates/my-events`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setIssuedCerts(certRes.data?.data || []);
+      
+    } catch (err) {
+      showToast(err.response?.data?.message || "Bulk issue failed", "error");
+    } finally {
+      setBulkIssuing(false);
+    }
+};
+
+const toggleSelect = (studentId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+};
+
+
+
+
 
   const handleDownloadCertificate = async (certId, studentName) => {
     if (!token) {
@@ -154,7 +207,7 @@ const OrganizerCertificates = () => {
     
     setDownloadingId(certId);
     try {
-      const response = await axios.get(`${API_URL}/api/certificates/download/${certId}`, {
+      const response = await axios.get(`${API_URL}/certificates/download/${certId}`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob'
       });
@@ -177,13 +230,12 @@ const OrganizerCertificates = () => {
     }
   };
 
-  // Delete Certificate Function
   const handleDeleteCertificate = async () => {
     if (!deleteModal) return;
     
     try {
       setDeleting(true);
-      const response = await axios.delete(`${API_URL}/api/certificates/${deleteModal._id}`, {
+      const response = await axios.delete(`${API_URL}/certificates/${deleteModal._id}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -210,10 +262,18 @@ const OrganizerCertificates = () => {
     setPreviewCert(cert);
   };
 
-  const filteredStudents = presentStudents.filter(student => 
-    student.student_id?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.student_id?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+ const filteredStudents = presentStudents.filter(student => {
+    const matchesSearch = 
+      student.student_id?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.student_id?.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesTab = 
+      activeTab === "all" ? true :
+      activeTab === "students" ? student.role === "Student" :
+      activeTab === "volunteers" ? student.role === "Volunteer" : true;
+    
+    return matchesSearch && matchesTab;
+});
 
   const formatDate = (d) => {
     if (!d) return "";
@@ -376,6 +436,78 @@ const OrganizerCertificates = () => {
                 </div>
               </div>
 
+              {/* Certificate Type + Bulk Actions */}
+<div className="bg-white rounded-3xl mb-6 p-5"
+  style={{ boxShadow: "0 2px 12px rgba(155,89,182,0.06)", border: "1px solid rgba(155,89,182,0.06)" }}>
+  
+  <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+    <div className="flex-1">
+      <label className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1 block">Certificate Type</label>
+      <select
+        value={selectedType}
+        onChange={(e) => setSelectedType(e.target.value)}
+        className="w-full px-4 py-2.5 rounded-xl border-2 border-purple-100 focus:border-[#8b4fa2] focus:outline-none bg-white text-gray-700"
+      >
+        {CERT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+      </select>
+    </div>
+  </div>
+
+  {/* Tabs */}
+  <div className="flex gap-2 mb-4">
+    {[
+      { key: "all", label: "All" },
+      { key: "students", label: "Students" },
+      { key: "volunteers", label: "Volunteers" },
+    ].map(tab => (
+      <button
+        key={tab.key}
+        onClick={() => setActiveTab(tab.key)}
+        className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
+          activeTab === tab.key
+            ? "text-white shadow-md"
+            : "text-gray-500 bg-gray-100 hover:bg-gray-200"
+        }`}
+        style={activeTab === tab.key ? { background: "linear-gradient(135deg,#9B59B6,#6d3483)" } : {}}
+      >
+        {tab.label}
+      </button>
+    ))}
+  </div>
+
+  {/* Bulk Buttons */}
+  <div className="flex flex-wrap gap-3">
+    <button
+      onClick={() => handleBulkIssue('All')}
+      disabled={bulkIssuing}
+      className="px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+      style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)" }}
+    >
+      {bulkIssuing ? "Issuing..." : "🎓 Issue to All Present"}
+    </button>
+
+    <button
+      onClick={() => handleBulkIssue('Volunteer')}
+      disabled={bulkIssuing}
+      className="px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+      style={{ background: "linear-gradient(135deg,#4ECDC4,#2b9d94)" }}
+    >
+      {bulkIssuing ? "Issuing..." : "🙋 Issue to All Volunteers"}
+    </button>
+
+    <button
+      onClick={() => handleBulkIssue('selected')}
+      disabled={bulkIssuing || selectedIds.size === 0}
+      className="px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+      style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}
+    >
+      {bulkIssuing ? "Issuing..." : `✅ Issue to Selected (${selectedIds.size})`}
+    </button>
+  </div>
+</div>
+
+
+
               {/* Present Students Section */}
               <div className="bg-white rounded-3xl overflow-hidden mb-6"
                 style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.09)", border: "1px solid rgba(155,89,182,0.08)" }}>
@@ -414,46 +546,62 @@ const OrganizerCertificates = () => {
                       return (
                         <div key={reg._id} className="p-5 hover:bg-purple-50/30 transition-colors group">
                           <div className="flex items-center justify-between gap-4 flex-wrap">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-base font-black shadow-md transition-transform group-hover:scale-105"
-                                style={{ background: AVATAR_GRADS[idx % AVATAR_GRADS.length] }}>
-                                {initials}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-black text-gray-800 truncate">{studentName}</h3>
-                                <p className="text-sm text-gray-500 truncate">{reg.student_id?.email || ""}</p>
-                                {reg.student_id?.department && (
-                                  <p className="text-xs text-gray-400 mt-0.5">{reg.student_id.department}</p>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {alreadyIssued ? (
-                              <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full">
-                                <span className="material-symbols-outlined text-green-500 text-sm">check_circle</span>
-                                <span className="text-green-600 font-semibold text-sm">Issued</span>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => handleIssueCertificate(studentId)}
-                                disabled={issuingId === studentId}
-                                className="px-6 py-2 rounded-full text-white font-bold text-sm transition-all shadow-md hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
-                                style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)" }}
-                              >
-                                {issuingId === studentId ? (
-                                  <span className="flex items-center gap-2">
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                    Issuing...
-                                  </span>
-                                ) : (
-                                  <span className="flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-sm">verified</span>
-                                    Issue Certificate
-                                  </span>
-                                )}
-                              </button>
-                            )}
-                          </div>
+  <div className="flex items-center gap-4 flex-1 min-w-0">
+    {/* Checkbox */}
+    {!alreadyIssued && (
+      <input
+        type="checkbox"
+        checked={selectedIds.has(studentId?.toString())}
+        onChange={() => toggleSelect(studentId?.toString())}
+        className="w-5 h-5 rounded border-2 border-purple-300 accent-[#8b4fa2] cursor-pointer shrink-0"
+      />
+    )}
+
+    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-base font-black shadow-md transition-transform group-hover:scale-105"
+      style={{ background: AVATAR_GRADS[idx % AVATAR_GRADS.length] }}>
+      {initials}
+    </div>
+
+    <div className="flex-1 min-w-0">
+      <h3 className="font-black text-gray-800 truncate">{studentName}</h3>
+      <p className="text-sm text-gray-500 truncate">{reg.student_id?.email || ""}</p>
+      <div className="flex items-center gap-2 mt-0.5">
+        {reg.student_id?.department && (
+          <p className="text-xs text-gray-400">{reg.student_id.department}</p>
+        )}
+        {reg.role === "Volunteer" && (
+          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-600">VOLUNTEER</span>
+        )}
+      </div>
+    </div>
+  </div>
+
+  {alreadyIssued ? (
+    <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full">
+      <span className="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+      <span className="text-green-600 font-semibold text-sm">Issued</span>
+    </div>
+  ) : (
+    <button
+      onClick={() => handleIssueCertificate(studentId)}
+      disabled={issuingId === studentId}
+      className="px-6 py-2 rounded-full text-white font-bold text-sm transition-all shadow-md hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+      style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)" }}
+    >
+      {issuingId === studentId ? (
+        <span className="flex items-center gap-2">
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          Issuing...
+        </span>
+      ) : (
+        <span className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-sm">verified</span>
+          Issue Certificate
+        </span>
+      )}
+    </button>
+  )}
+</div>
                         </div>
                       );
                     })}

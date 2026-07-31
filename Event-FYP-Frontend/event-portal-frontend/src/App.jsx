@@ -35,6 +35,7 @@ import AdminManageTasks from "./pages/Admin/AdminManageTasks";
 import ManageFeedback from "./pages/Admin/ManageFeedback";
 import ManageFeedbacks from "./pages/Admin/ManageFeedback.jsx";
 import ManageCertificates from "./pages/Admin/ManageCertificates";
+import AttendanceReports from "./pages/Admin/AttendanceReports";
 
 
 
@@ -107,6 +108,7 @@ function App() {
       <Route path="/admin/manage-tasks" element={<AdminManageTasks />} />
       <Route path="/admin/feedback" element={<ManageFeedbacks />} />
       <Route path="/admin/certificates" element={<ManageCertificates />} />
+      <Route path="/admin/attendance-reports" element={<AttendanceReports />} />
 
     </Routes>
   );

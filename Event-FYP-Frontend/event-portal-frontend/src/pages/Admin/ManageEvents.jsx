@@ -67,6 +67,7 @@ const ManageEvents = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
   const [editFormData, setEditFormData] = useState(null);
+  const [showEditConfirm, setShowEditConfirm] = useState(false);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -141,18 +142,6 @@ const ManageEvents = () => {
       setActioningId(eventId);
       
       const event = events.find(e => e._id === eventId);
-      
-      if (!window.confirm(
-        `⚠️ WARNING: Deleting "${event?.title || 'this event'}" will also remove:\n\n` +
-        `• All registrations for this event\n` +
-        `• All feedback/reviews\n` +
-        `• Associated certificates\n` +
-        `• Task assignments\n\n` +
-        `This action CANNOT be undone. Are you sure?`
-      )) {
-        setActioningId(null);
-        return;
-      }
 
       await axios.delete(
        `${API_URL}/events/admin/${eventId}`,
@@ -198,9 +187,15 @@ const ManageEvents = () => {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    
+    // Show confirmation dialog
+    setShowEditConfirm(true);
+  };
 
+  const confirmEdit = async () => {
     try {
       setActioningId(editingEvent);
+      setShowEditConfirm(false);
 
       const res = await axios.put(
         `${API_URL}/events/admin/${editingEvent}`,
@@ -365,21 +360,19 @@ const ManageEvents = () => {
           className="relative overflow-hidden px-6 pt-6 pb-10"
           style={{ background: "linear-gradient(135deg,#9B59B6 0%,#6d3483 100%)" }}
         >
-          {/* Decorative elements */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#FFE66D]/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
+
           
           <div className="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 rounded-full bg-[#FFE66D] text-[#1A1A1A] text-xs font-black tracking-widest uppercase shadow-lg">
-                <Sparkles size={14} />
+              
                 Admin Portal
               </div>
               <h1 className="text-4xl font-black text-white leading-tight tracking-tight">
-                Manage <span className="text-[#FFE66D]">Events</span>
+                Manage <span> Events</span>
               </h1>
               <p className="text-purple-200 text-sm mt-1 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#FFE66D] animate-pulse" />
+       
                 Review, approve, edit, and manage all events
               </p>
             </div>
@@ -884,10 +877,57 @@ const ManageEvents = () => {
         </div>
       )}
 
-      {/* ─── EDIT EVENT MODAL ─── */}
-      {editingEvent && editFormData && (
+      {/* ─── EDIT CONFIRMATION MODAL ─── */}
+      {showEditConfirm && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md px-4"
+          onClick={() => setShowEditConfirm(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-fadeIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <div className="w-20 h-20 mx-auto rounded-full bg-purple-100 flex items-center justify-center mb-4 shadow-lg shadow-purple-200">
+                <Edit size={36} className="text-purple-500" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800">Confirm Edit</h3>
+              <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+                Are you sure you want to update this event?
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowEditConfirm(false)}
+                className="flex-1 py-3.5 rounded-xl text-sm font-bold border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all duration-300 hover:shadow-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmEdit}
+                disabled={actioningId === editingEvent}
+                className="flex-1 py-3.5 rounded-xl text-sm font-bold text-white transition-all duration-300 disabled:opacity-50 hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(135deg, #8b4fa2, #6d3483)" }}
+              >
+                {actioningId === editingEvent ? (
+                  <Loader size={18} className="animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle size={18} />
+                    Update Event
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── EDIT EVENT MODAL ─── */}
+      {editingEvent && editFormData && !showEditConfirm && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md px-4"
           onClick={() => {
             setEditingEvent(null);
             setEditFormData(null);
@@ -1014,18 +1054,11 @@ const ManageEvents = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  disabled={actioningId === editingEvent}
-                  className="flex-1 py-3.5 rounded-xl text-sm font-bold text-white transition-all duration-300 disabled:opacity-50 hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                  className="flex-1 py-3.5 rounded-xl text-sm font-bold text-white transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2"
                   style={{ background: "linear-gradient(135deg, #8b4fa2, #6d3483)" }}
                 >
-                  {actioningId === editingEvent ? (
-                    <Loader size={18} className="animate-spin" />
-                  ) : (
-                    <>
-                      <CheckCircle size={18} />
-                      Update Event
-                    </>
-                  )}
+                  <CheckCircle size={18} />
+                  Update Event
                 </button>
                 <button
                   type="button"

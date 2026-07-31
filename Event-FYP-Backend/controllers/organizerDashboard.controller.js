@@ -27,9 +27,13 @@ exports.getOrganizerDashboardStats = async (req, res) => {
         const approvedEvents = await Event.countDocuments({ _id: { $in: eventIds }, approved: true });
         const rejectedEvents = await Event.countDocuments({ _id: { $in: eventIds }, approved: false });
 
-        const totalRegistrations = await Registration.countDocuments({ event_id: { $in: eventIds } });
-        const presentCount = await Registration.countDocuments({ event_id: { $in: eventIds }, attendance_status: 'Present' });
-        const absentCount = await Registration.countDocuments({ event_id: { $in: eventIds }, attendance_status: 'Absent' });
+       // Registrations - ✅ Attendance formula
+const totalRegistrations = await Registration.countDocuments({ event_id: { $in: eventIds } });
+const presentCount = await Registration.countDocuments({ 
+    event_id: { $in: eventIds }, 
+    attendance_status: 'Present' 
+});
+const absentCount = totalRegistrations - presentCount;  // ✅ YEH LINE ADD KAREN
 
         const totalTasks = await Task.countDocuments({ event_id: { $in: eventIds } });
         const completedTasks = await Task.countDocuments({ event_id: { $in: eventIds }, status: 'Completed' });

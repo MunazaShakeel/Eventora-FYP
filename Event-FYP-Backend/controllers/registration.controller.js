@@ -180,3 +180,187 @@ exports.getVolunteersByEvent = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+// ------------------ EXPORT ATTENDANCE REPORT (EXCEL) ------------------
+const ExcelJS = require('exceljs');
+
+exports.exportAttendanceReport = async (req, res) => {
+    try {
+        const { event_id } = req.query;
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'Eventora Admin';
+        workbook.created = new Date();
+
+        if (event_id) {
+            // ── SINGLE EVENT REPORT ──
+            const event = await Event.findById(event_id);
+            if (!event) {
+                return res.status(404).json({ success: false, message: 'Event not found' });
+            }
+
+            const registrations = await Registration.find({ event_id })
+                .populate('student_id', 'name email department semester')
+                .sort({ role: 1, 'student_id.name': 1 });
+
+            const sheet = workbook.addWorksheet(event.title.substring(0, 28) || 'Attendance');
+            sheet.columns = [
+                { header: 'Name', key: 'name', width: 25 },
+                { header: 'Email', key: 'email', width: 30 },
+                { header: 'Department', key: 'department', width: 20 },
+                { header: 'Role', key: 'role', width: 12 },
+                { header: 'Attendance Status', key: 'status', width: 18 },
+                { header: 'Registration Date', key: 'regDate', width: 20 },
+            ];
+            sheet.getRow(1).font = { bold: true };
+            sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6D9F2' } };
+
+            registrations.forEach(reg => {
+                sheet.addRow({
+                    name: reg.student_id?.name || 'N/A',
+                    email: reg.student_id?.email || 'N/A',
+                    department: reg.student_id?.department || 'N/A',
+                    role: reg.role,
+                    status: reg.attendance_status,
+                    regDate: reg.registration_date ? new Date(reg.registration_date).toLocaleDateString() : 'N/A',
+                });
+            });
+
+            // Summary row
+            const present = registrations.filter(r => r.attendance_status === 'Present').length;
+            const absent = registrations.filter(r => r.attendance_status !== 'Present').length;
+            sheet.addRow({});
+            sheet.addRow({ name: 'Total', email: registrations.length });
+            sheet.addRow({ name: 'Present', email: present });
+            sheet.addRow({ name: 'Absent/Not Marked', email: absent });
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=attendance-${event.title.replace(/\s/g, '_')}.xlsx`);
+            await workbook.xlsx.write(res);
+            return res.end();
+
+        } else {
+            // ── ALL EVENTS REPORT (summary sheet + per-event sheets) ──
+            const events = await Event.find().sort({ start_date: -1 });
+
+            const summarySheet = workbook.addWorksheet('Summary');
+            summarySheet.columns = [
+                { header: 'Event Title', key: 'title', width: 30 },
+                { header: 'Date', key: 'date', width: 15 },
+                { header: 'Total Registered', key: 'total', width: 18 },
+                { header: 'Present', key: 'present', width: 12 },
+                { header: 'Absent', key: 'absent', width: 12 },
+            ];
+            summarySheet.getRow(1).font = { bold: true };
+            summarySheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6D9F2' } };
+
+            for (const event of events) {
+                const regs = await Registration.find({ event_id: event._id });
+                const present = regs.filter(r => r.attendance_status === 'Present').length;
+                const absent = regs.length - present;
+
+                summarySheet.addRow({
+                    title: event.title,
+                    date: event.start_date ? new Date(event.start_date).toLocaleDateString() : 'TBA',
+                    total: regs.length,
+                    present,
+                    absent,
+                });
+            }
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=attendance-all-events-${new Date().toISOString().split('T')[0]}.xlsx`);
+            await workbook.xlsx.write(res);
+            return res.end();
+        }
+
+    } catch (error) {
+        console.error('Attendance report export error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+
+
+// ------------------ PREVIEW ATTENDANCE REPORT (JSON) ------------------
+exports.previewAttendanceReport = async (req, res) => {
+    try {
+        const { event_id } = req.query;
+
+        if (event_id) {
+            // ── SINGLE EVENT PREVIEW ──
+            const event = await Event.findById(event_id).select('title start_date venue');
+            if (!event) {
+                return res.status(404).json({ success: false, message: 'Event not found' });
+            }
+
+            const registrations = await Registration.find({ event_id })
+                .populate('student_id', 'name email department semester')
+                .sort({ role: 1 });
+
+            const present = registrations.filter(r => r.attendance_status === 'Present').length;
+            const notPresent = registrations.length - present;
+
+            const students = registrations.map(reg => ({
+                _id: reg._id,
+                name: reg.student_id?.name || 'N/A',
+                email: reg.student_id?.email || 'N/A',
+                department: reg.student_id?.department || 'N/A',
+                role: reg.role,
+                status: reg.attendance_status,
+                registration_date: reg.registration_date,
+            }));
+
+            return res.status(200).json({
+                success: true,
+                mode: 'single',
+                event,
+                stats: {
+                    total: registrations.length,
+                    present,
+                    notPresent,
+                },
+                students,
+            });
+
+        } else {
+            // ── ALL EVENTS PREVIEW (summary only) ──
+            const events = await Event.find().sort({ start_date: -1 }).select('title start_date');
+
+            const summary = [];
+            let grandTotal = 0, grandPresent = 0;
+
+            for (const event of events) {
+                const regs = await Registration.find({ event_id: event._id });
+                const present = regs.filter(r => r.attendance_status === 'Present').length;
+                grandTotal += regs.length;
+                grandPresent += present;
+
+                summary.push({
+                    event_id: event._id,
+                    title: event.title,
+                    date: event.start_date,
+                    total: regs.length,
+                    present,
+                    notPresent: regs.length - present,
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                mode: 'all',
+                stats: {
+                    totalEvents: events.length,
+                    totalRegistrations: grandTotal,
+                    totalPresent: grandPresent,
+                    totalNotPresent: grandTotal - grandPresent,
+                },
+                summary,
+            });
+        }
+
+    } catch (error) {
+        console.error('Attendance preview error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

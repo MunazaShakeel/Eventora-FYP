@@ -174,7 +174,7 @@ const BrowseEvents = () => {
             {/* ✅ CORRECTED HEADER */}
             <div className="mb-10 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-linear-to-br from-[#8b4fa2] to-[#4ECDC4] rounded-2xl shadow-lg mb-4">
-                <Sparkles size={32} className="text-white" />
+               
               </div>
               <h1 className="text-3xl lg:text-5xl font-extrabold">
                 Discover <span className="text-[#8b4fa2]">Events</span>

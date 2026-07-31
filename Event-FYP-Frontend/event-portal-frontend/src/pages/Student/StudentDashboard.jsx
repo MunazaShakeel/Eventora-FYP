@@ -85,7 +85,7 @@ const QuickActionButton = ({ action, onClick, index }) => (
   </button>
 );
 
-// Event Hover Card Component
+// Event Hover Card Component - TIME REMOVED
 const EventHoverCard = ({ event, position }) => {
   const [show, setShow] = useState(false);
   
@@ -130,6 +130,7 @@ const EventHoverCard = ({ event, position }) => {
         )}
       </div>
       
+      {/* Hover Card - TIME REMOVED */}
       {show && (
         <div className="absolute z-50 bottom-full left-0 mb-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 transition-all duration-200 animate-fadeInUp">
           <div className="flex items-start gap-3">
@@ -138,18 +139,31 @@ const EventHoverCard = ({ event, position }) => {
             </div>
             <div className="flex-1">
               <h4 className="font-bold text-gray-800 text-sm">{event.title}</h4>
-              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+              
+              {/* ✅ Date - Working */}
+              <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
                 <span className="material-symbols-outlined text-[12px]">calendar_today</span>
-                {new Date(event.start_date).toLocaleDateString("en-PK", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                {new Date(event.start_date).toLocaleDateString("en-PK", { 
+                  weekday: "long", 
+                  year: "numeric", 
+                  month: "long", 
+                  day: "numeric" 
+                })}
               </p>
-              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+              
+              {/* ❌ TIME REMOVED - Ye line hata di */}
+              {/* <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                 <span className="material-symbols-outlined text-[12px]">schedule</span>
-                {event.start_time || "Time TBA"} - {event.end_time || ""}
-              </p>
+                {event.start_time || "Time TBA"}
+              </p> */}
+              
+              {/* ✅ Venue - Working */}
               <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                 <span className="material-symbols-outlined text-[12px]">location_on</span>
                 {event.venue || "Venue TBA"}
               </p>
+              
+              {/* Description */}
               {event.description && (
                 <p className="text-xs text-gray-400 mt-2 line-clamp-2">{event.description}</p>
               )}
@@ -205,10 +219,12 @@ const StudentDashboard = () => {
         const headers = { Authorization: `Bearer ${token}` };
         const studentId = user.id;
 
+        // ─── FETCH PROFILE ───
         const profileRes = await axios.get(`${API_URL}/students/me`, { headers });
         const profile = profileRes.data?.student || profileRes.data;
         if (profile?.name) setStudentName(profile.name);
 
+        // ─── FETCH REGISTRATIONS ───
         const regRes = await axios.get(`${API_URL}/registrations/my-registrations`, { headers });
         const regList = Array.isArray(regRes.data)
           ? regRes.data
@@ -219,12 +235,29 @@ const StudentDashboard = () => {
           : [];
         setMyRegistrations(regList);
 
+        // ─── ✅ FETCH CERTIFICATES (FIXED) ───
         try {
-          const certRes = await axios.get(`${API_URL}/certificates/my-certificates`, { headers });
-          const certs = certRes.data?.data || certRes.data || [];
+          // ✅ CORRECT ENDPOINT: /certificates/my
+          const certRes = await axios.get(`${API_URL}/certificates/my`, { 
+            headers: { Authorization: `Bearer ${token}` } 
+          });
+          
+          // Handle different response formats
+          let certs = [];
+          if (Array.isArray(certRes.data)) {
+            certs = certRes.data;
+          } else if (certRes.data?.data && Array.isArray(certRes.data.data)) {
+            certs = certRes.data.data;
+          } else if (certRes.data?.certificates && Array.isArray(certRes.data.certificates)) {
+            certs = certRes.data.certificates;
+          }
+          
           setCertificatesCount(certs.length);
+          console.log(`✅ Found ${certs.length} certificates`);
         } catch (certErr) {
           console.error("Error fetching certificates:", certErr);
+          // Don't show error to user, just set to 0
+          setCertificatesCount(0);
         }
 
         setTimeout(() => setAnimate(true), 200);

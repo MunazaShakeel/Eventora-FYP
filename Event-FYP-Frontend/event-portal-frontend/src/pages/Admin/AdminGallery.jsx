@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AdminSidebar from '../../components/AdminSidebar';
+import { 
+  Search, 
+  RefreshCw, 
+  Trash2, 
+  X, 
+  AlertCircle, 
+  CheckCircle,
+  Image as ImageIcon,
+  Video,
+  BarChart3,
+  Download,
+  Play,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  Loader
+} from 'lucide-react';
 
 const AdminGallery = () => {
   const [events, setEvents] = useState([]);
@@ -12,20 +29,36 @@ const AdminGallery = () => {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [activeFilter, setActiveFilter] = useState('All');
   const [deletingId, setDeletingId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [mediaToDelete, setMediaToDelete] = useState(null);
+  const [toast, setToast] = useState(null);
 
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
   const BASE_URL = 'http://localhost:5000';
 
-  // Fetch all events (admin sees everything)
+  // Toast notification
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Fetch all events - ONLY APPROVED
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         const res = await axios.get(`${BASE_URL}/api/events/all`, { headers });
-        const allEvents = res.data?.events || res.data || [];
+        let allEvents = res.data?.events || res.data || [];
+        
+        // ONLY APPROVED EVENTS
+        allEvents = allEvents.filter(event => event.approved === true);
+        
         setEvents(allEvents);
       } catch (err) {
         console.error('Events fetch error:', err);
+        showToast('Failed to load events', 'error');
       } finally {
         setLoadingEvents(false);
       }
@@ -33,41 +66,100 @@ const AdminGallery = () => {
     fetchEvents();
   }, []);
 
-  // Fetch gallery for selected event
+  // Fetch gallery - CHECK APPROVED
+  const fetchGallery = async (eventId) => {
+    if (!eventId) return;
+    
+    const event = events.find(e => e._id === eventId);
+    if (!event || !event.approved) {
+      setMediaItems([]);
+      showToast('This event is not approved yet. Only approved events have gallery access.', 'error');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const res = await axios.get(`${BASE_URL}/api/gallery/event/${eventId}`, { headers });
+      setMediaItems(res.data || []);
+    } catch (err) {
+      console.error('Gallery fetch error:', err);
+      setMediaItems([]);
+      showToast('Failed to load gallery', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (!selectedEvent) return;
-    const fetchGallery = async () => {
-      setLoading(true);
-      try {
-        const res = await axios.get(`${BASE_URL}/api/gallery/event/${selectedEvent}`, { headers });
-        setMediaItems(res.data || []);
-      } catch (err) {
-        console.error('Gallery fetch error:', err);
-        setMediaItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchGallery();
+    if (selectedEvent) {
+      fetchGallery(selectedEvent);
+    }
   }, [selectedEvent]);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this media? This action cannot be undone.')) return;
-    setDeletingId(id);
+  const handleDelete = async () => {
+    if (!mediaToDelete) return;
+    
+    setDeletingId(mediaToDelete);
     try {
-      await axios.delete(`${BASE_URL}/api/gallery/${id}`, { headers });
-      setMediaItems((prev) => prev.filter((m) => m._id !== id));
-      if (lightbox?._id === id) setLightbox(null);
+      await axios.delete(`${BASE_URL}/api/gallery/${mediaToDelete}`, { headers });
+      setMediaItems((prev) => prev.filter((m) => m._id !== mediaToDelete));
+      if (lightbox?._id === mediaToDelete) setLightbox(null);
+      showToast('Media deleted successfully!', 'success');
+      setShowDeleteModal(false);
+      setMediaToDelete(null);
     } catch (err) {
-      alert('Delete failed. Please try again.');
+      showToast('Delete failed. Please try again.', 'error');
     } finally {
       setDeletingId(null);
     }
   };
 
+  const openDeleteModal = (id) => {
+    setMediaToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    if (selectedEvent) {
+      await fetchGallery(selectedEvent);
+    }
+    setIsRefreshing(false);
+    showToast('Gallery refreshed successfully!', 'success');
+  };
+
+  const handleDownload = async (item) => {
+    try {
+      const response = await fetch(`${BASE_URL}${item.media_url}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const extension = item.media_type === 'Video' ? 'mp4' : 'jpg';
+      link.download = `${item._id}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      showToast('Download started!', 'success');
+    } catch (err) {
+      showToast('Download failed. Please try again.', 'error');
+    }
+  };
+
+  // Filter media with search
   const filteredMedia = mediaItems.filter((item) => {
-    if (activeFilter === 'Images') return item.media_type === 'Image';
-    if (activeFilter === 'Videos') return item.media_type === 'Video';
+    // Filter by type
+    if (activeFilter === 'Images' && item.media_type !== 'Image') return false;
+    if (activeFilter === 'Videos' && item.media_type !== 'Video') return false;
+    
+    // Filter by search (event name)
+    if (searchQuery) {
+      const event = events.find(e => e._id === selectedEvent);
+      const eventName = event?.title || '';
+      return eventName.toLowerCase().includes(searchQuery.toLowerCase());
+    }
+    
     return true;
   });
 
@@ -108,13 +200,14 @@ const AdminGallery = () => {
         <header className="bg-white/80 backdrop-blur-md fixed top-0 right-0 left-64 z-40 shadow-sm flex justify-between items-center px-8 py-3">
           <div className="flex items-center gap-4 flex-1">
             <div className="relative w-full max-w-sm">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <select
                 value={selectedEvent}
                 onChange={(e) => {
                   setSelectedEvent(e.target.value);
                   setMediaItems([]);
                   setActiveFilter('All');
+                  setSearchQuery('');
                 }}
                 className="w-full pl-10 pr-4 py-2 bg-[#f0eded] border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#7cf6ec] transition-all cursor-pointer text-[#1c1b1b] font-semibold"
               >
@@ -124,14 +217,48 @@ const AdminGallery = () => {
                 ))}
               </select>
             </div>
+            {/* Search Bar */}
+            <div className="relative flex-1 max-w-sm">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by event name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-[#f0eded] border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#7cf6ec] transition-all"
+              />
+            </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing || !selectedEvent}
+              className="p-2 text-slate-500 hover:bg-purple-50 rounded-full transition-all disabled:opacity-50"
+            >
+              <RefreshCw size={20} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
             <button className="p-2 text-slate-500 hover:bg-purple-50 rounded-full transition-all">
               <span className="material-symbols-outlined">notifications</span>
             </button>
             <div className="h-8 w-8 rounded-full bg-[#8b4fa2] flex items-center justify-center text-white font-bold text-sm">A</div>
           </div>
         </header>
+
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`fixed top-20 right-6 z-50 flex items-center gap-2.5 px-5 py-3.5 rounded-xl text-sm font-semibold shadow-xl animate-fadeIn ${
+            toast.type === 'success' 
+              ? 'bg-[#1A1A1A] text-white border border-[#333]' 
+              : 'bg-[#3A1414] text-white border border-[#5c2222]'
+          }`}>
+            {toast.type === 'success' ? (
+              <CheckCircle size={17} className="text-[#4ECDC4]" />
+            ) : (
+              <AlertCircle size={17} className="text-[#FF6B6B]" />
+            )}
+            {toast.message}
+          </div>
+        )}
 
         {/* Main Canvas */}
         <div className="pt-24 px-8 pb-12 max-w-7xl mx-auto">
@@ -148,10 +275,41 @@ const AdminGallery = () => {
             </div>
             {selectedEvent && (
               <div className="bg-white px-5 py-3 rounded-xl shadow-sm flex items-center gap-2 text-sm font-bold text-[#80409b]">
-                <span className="material-symbols-outlined text-lg">event</span>
+                <Calendar size={18} />
                 {getEventTitle()}
               </div>
             )}
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <BarChart3 size={24} className="text-[#80409b]" />
+              </div>
+              <div>
+                <p className="text-sm text-[#4d434f] font-medium">Total Media</p>
+                <p className="text-2xl font-bold text-[#1c1b1b]">{mediaItems.length}</p>
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <ImageIcon size={24} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-[#4d434f] font-medium">Images</p>
+                <p className="text-2xl font-bold text-[#1c1b1b]">{imageCount}</p>
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                <Video size={24} className="text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-[#4d434f] font-medium">Videos</p>
+                <p className="text-2xl font-bold text-[#1c1b1b]">{videoCount}</p>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -192,7 +350,7 @@ const AdminGallery = () => {
               {!selectedEvent ? (
                 <div className="bg-white rounded-2xl p-20 text-center flex flex-col items-center">
                   <div className="w-24 h-24 bg-[#f0eded] rounded-full flex items-center justify-center mb-6">
-                    <span className="material-symbols-outlined text-5xl text-[#c9a8e0]">photo_library</span>
+                    <ImageIcon size={40} className="text-[#c9a8e0]" />
                   </div>
                   <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-xl font-bold text-[#1c1b1b]">
                     Select an event to manage its gallery
@@ -203,14 +361,16 @@ const AdminGallery = () => {
                 </div>
               ) : loading ? (
                 <div className="text-center py-20 text-[#4d434f]">
-                  <span className="material-symbols-outlined text-5xl text-[#c9a8e0] animate-spin">autorenew</span>
+                  <Loader size={48} className="text-[#80409b] animate-spin mx-auto" />
                   <p className="mt-3 font-semibold">Loading gallery...</p>
                 </div>
               ) : filteredMedia.length === 0 ? (
                 <div className="bg-white rounded-2xl p-16 text-center flex flex-col items-center">
-                  <span className="material-symbols-outlined text-6xl text-[#c9a8e0]">image_not_supported</span>
+                  <ImageIcon size={48} className="text-[#c9a8e0] mb-3" />
                   <p className="text-lg font-bold text-[#1c1b1b] mt-3">No media found</p>
-                  <p className="text-sm text-[#4d434f] mt-1">No photos or videos have been uploaded for this event yet.</p>
+                  <p className="text-sm text-[#4d434f] mt-1">
+                    {searchQuery ? 'No events match your search.' : 'No photos or videos have been uploaded for this event yet.'}
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -228,7 +388,7 @@ const AdminGallery = () => {
                             />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <div className="bg-black/40 rounded-full w-14 h-14 flex items-center justify-center group-hover:bg-[#8b4fa2]/80 transition">
-                                <span className="material-symbols-outlined text-white text-3xl">play_arrow</span>
+                                <Play size={28} className="text-white ml-1" />
                               </div>
                             </div>
                           </div>
@@ -259,21 +419,33 @@ const AdminGallery = () => {
                           </p>
                         </div>
 
-                        {/* Admin Delete Button */}
-                        <button
-                          onClick={() => handleDelete(item._id)}
-                          disabled={deletingId === item._id}
-                          className={`p-2 rounded-lg transition ${
-                            deletingId === item._id
-                              ? 'bg-gray-100 cursor-not-allowed'
-                              : 'bg-red-50 hover:bg-red-100 text-[#cb4548]'
-                          }`}
-                          title="Delete media"
-                        >
-                          <span className="material-symbols-outlined text-xl">
-                            {deletingId === item._id ? 'hourglass_empty' : 'delete'}
-                          </span>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {/* Download Button */}
+                          <button
+                            onClick={() => handleDownload(item)}
+                            className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition"
+                            title="Download media"
+                          >
+                            <Download size={18} />
+                          </button>
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => openDeleteModal(item._id)}
+                            disabled={deletingId === item._id}
+                            className={`p-2 rounded-lg transition ${
+                              deletingId === item._id
+                                ? 'bg-gray-100 cursor-not-allowed'
+                                : 'bg-red-50 hover:bg-red-100 text-[#cb4548]'
+                            }`}
+                            title="Delete media"
+                          >
+                            {deletingId === item._id ? (
+                              <Loader size={18} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={18} />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -288,7 +460,7 @@ const AdminGallery = () => {
                 {/* Stats */}
                 <div className="bg-white p-6 rounded-xl shadow-sm">
                   <h3 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-lg text-[#1c1b1b] mb-5 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#80409b]">bar_chart</span>
+                    <BarChart3 size={20} className="text-[#80409b]" />
                     Media Stats
                   </h3>
 
@@ -329,12 +501,12 @@ const AdminGallery = () => {
                   )}
                 </div>
 
-                {/* Events List */}
+                {/* Events List - Approved Events */}
                 {events.length > 0 && (
                   <div className="bg-white p-6 rounded-xl shadow-sm">
                     <h3 className="font-['Plus_Jakarta_Sans',sans-serif] font-bold text-sm text-[#1c1b1b] mb-4 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[#80409b] text-lg">calendar_today</span>
-                      All Events
+                      <Calendar size={18} className="text-[#80409b]" />
+                      Approved Events
                     </h3>
                     <ul className="flex flex-col gap-1 max-h-64 overflow-y-auto">
                       {events.map((ev) => (
@@ -344,6 +516,7 @@ const AdminGallery = () => {
                               setSelectedEvent(ev._id);
                               setMediaItems([]);
                               setActiveFilter('All');
+                              setSearchQuery('');
                             }}
                             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition ${
                               selectedEvent === ev._id
@@ -361,7 +534,7 @@ const AdminGallery = () => {
 
                 {/* Admin Warning Card */}
                 <div className="bg-red-50 p-5 rounded-xl border border-red-100">
-                  <span className="material-symbols-outlined text-[#cb4548] mb-2 block">warning</span>
+                  <AlertCircle size={20} className="text-[#cb4548] mb-2" />
                   <h4 className="font-bold text-[#cb4548] text-sm">Admin Permissions</h4>
                   <p className="text-[#cb4548]/80 text-xs mt-1 leading-relaxed">
                     As admin, you can permanently delete any media. Deleted files cannot be recovered.
@@ -373,6 +546,47 @@ const AdminGallery = () => {
         </div>
       </main>
 
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full mx-4 p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                <AlertCircle size={20} className="text-[#cb4548]" />
+              </div>
+              <h3 className="text-lg font-bold text-[#1c1b1b]">Delete Media</h3>
+            </div>
+            <p className="text-sm text-[#4d434f]">
+              Are you sure you want to permanently delete this media? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setMediaToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl border text-sm font-bold transition hover:bg-gray-50"
+                style={{ borderColor: '#ECE6F4', color: '#5A5164' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deletingId === mediaToDelete}
+                className="px-4 py-2 rounded-xl text-white text-sm font-bold transition hover:shadow-lg disabled:opacity-50"
+                style={{ background: '#FF6B6B' }}
+              >
+                {deletingId === mediaToDelete ? (
+                  <Loader size={16} className="animate-spin" />
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lightbox */}
       {lightbox && (
         <div
@@ -383,7 +597,7 @@ const AdminGallery = () => {
             onClick={() => setLightbox(null)}
             className="fixed top-5 right-7 bg-white/10 hover:bg-white/20 text-white rounded-full w-10 h-10 text-lg font-bold flex items-center justify-center transition z-50"
           >
-            ✕
+            <X size={24} />
           </button>
 
           <div className="fixed top-5 left-1/2 -translate-x-1/2 flex items-center gap-3 z-50">
@@ -391,11 +605,18 @@ const AdminGallery = () => {
               {lightboxIndex + 1} / {filteredMedia.length}
             </span>
             <button
-              onClick={(e) => { e.stopPropagation(); handleDelete(lightbox._id); }}
+              onClick={(e) => { e.stopPropagation(); openDeleteModal(lightbox._id); }}
               className="bg-[#cb4548]/80 hover:bg-[#cb4548] text-white text-xs font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 transition"
             >
-              <span className="material-symbols-outlined text-sm">delete</span>
+              <Trash2 size={14} />
               Delete
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDownload(lightbox); }}
+              className="bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 transition"
+            >
+              <Download size={14} />
+              Download
             </button>
           </div>
 
@@ -404,7 +625,7 @@ const AdminGallery = () => {
               onClick={prevMedia}
               className="fixed left-5 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full w-12 h-12 flex items-center justify-center transition z-50"
             >
-              <span className="material-symbols-outlined text-2xl">chevron_left</span>
+              <ChevronLeft size={28} />
             </button>
           )}
 
@@ -432,11 +653,19 @@ const AdminGallery = () => {
               onClick={nextMedia}
               className="fixed right-5 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full w-12 h-12 flex items-center justify-center transition z-50"
             >
-              <span className="material-symbols-outlined text-2xl">chevron_right</span>
+              <ChevronRight size={28} />
             </button>
           )}
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.25s ease-out forwards; }
+      `}</style>
     </div>
   );
 };
