@@ -73,9 +73,10 @@ const ManageOrganizers = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    fetchOrganizers();
-  }, []);
+ useEffect(() => {
+  if (!token) return;
+  fetchOrganizers();
+}, [token]);
 
   const fetchOrganizers = async () => {
     try {
@@ -869,7 +870,7 @@ const ManageOrganizers = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;

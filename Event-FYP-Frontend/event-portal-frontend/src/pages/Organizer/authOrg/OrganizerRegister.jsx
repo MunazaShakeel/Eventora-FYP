@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../../../components/Navbar";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -25,28 +25,158 @@ const OrganizerRegister = () => {
   // Password show/hide states
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Name validation state
+  const [nameError, setNameError] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+  
+  // Phone validation state
+  const [phoneError, setPhoneError] = useState("");
+  
+  // Password validation states
+  const [passwordErrors, setPasswordErrors] = useState({
+    length: false,
+    uppercase: false,
+    number: false
+  });
+  const [passwordTouched, setPasswordTouched] = useState(false);
+  
+  // Email validation state
+  const [emailError, setEmailError] = useState("");
+  const [isEmailChecking, setIsEmailChecking] = useState(false);
+  const [emailAvailable, setEmailAvailable] = useState(null);
+  const [emailTouched, setEmailTouched] = useState(false);
 
-  // Departments list without "other" - we'll add it separately
-  const departments = [
-    { value: "", label: "Select Department" },
-    { value: "cs", label: "Computer Science" },
-    { value: "math", label: "Mathematics" },
-    { value: "hssc2", label: "HSSC II" },
-    { value: "hssc1", label: "HSSC I" },
-    { value: "10", label: "Grade 10" },
-    { value: "9", label: "Grade 9" },
-    { value: "8", label: "Grade 8" },
-    { value: "7", label: "Grade 7" },
-    { value: "6", label: "Grade 6" },
-    { value: "5", label: "Grade 5" },
-  ];
+  // Name validation function
+  const validateName = (name) => {
+    if (!name.trim()) {
+      setNameError("Name is required");
+      return false;
+    }
+    if (name.trim().length < 2) {
+      setNameError("Minimum 2 characters");
+      return false;
+    }
+    if (name.trim().length > 50) {
+      setNameError("Maximum 50 characters");
+      return false;
+    }
+    if (!/^[a-zA-Z\s\-']+$/.test(name.trim())) {
+      setNameError("Only letters, spaces, hyphens, apostrophes");
+      return false;
+    }
+    setNameError("");
+    return true;
+  };
+
+  // Password validation function
+  const validatePassword = (password) => {
+    const errors = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      number: /[0-9]/.test(password)
+    };
+    setPasswordErrors(errors);
+    return Object.values(errors).every(val => val === true);
+  };
+
+  // Check email uniqueness
+  const checkEmailAvailability = async (email) => {
+    if (!email || !email.includes('@')) {
+      setEmailAvailable(null);
+      setEmailError("");
+      return;
+    }
+
+    setIsEmailChecking(true);
+    setEmailError("");
+    
+    try {
+      // Check if email exists in students
+      const studentRes = await axios.get(`${API_URL}/students/check-email?email=${email}`);
+      
+      // Check if email exists in organizers
+      const organizerRes = await axios.get(`${API_URL}/organizers/check-email?email=${email}`);
+      
+      // Check if email exists in admins
+      const adminRes = await axios.get(`${API_URL}/admins/check-email?email=${email}`);
+
+      if (studentRes.data.exists || organizerRes.data.exists || adminRes.data.exists) {
+        setEmailAvailable(false);
+        setEmailError("This email is already registered. Please use a different email or login.");
+      } else {
+        setEmailAvailable(true);
+        setEmailError("");
+      }
+    } catch (err) {
+      console.error("Email check error:", err);
+      setEmailAvailable(null);
+      setEmailError("");
+    } finally {
+      setIsEmailChecking(false);
+    }
+  };
+
+  // Debounce email check
+  useEffect(() => {
+    if (emailTouched && formData.email) {
+      const timer = setTimeout(() => {
+        checkEmailAvailability(formData.email);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [formData.email, emailTouched]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
+    // Phone validation
+    if (name === "phone") {
+      const cleanedValue = value.replace(/\D/g, '');
+      
+      if (cleanedValue.length <= 11) {
+        setFormData((prev) => ({
+          ...prev,
+          [name]: cleanedValue
+        }));
+        
+        if (cleanedValue.length === 0) {
+          setPhoneError("");
+        } else if (cleanedValue.length < 11) {
+          setPhoneError("Phone number must be exactly 11 digits");
+        } else if (cleanedValue.length === 11) {
+          if (cleanedValue.startsWith('03')) {
+            setPhoneError("");
+          } else {
+            setPhoneError("Pakistani number must start with 03 (e.g., 03XXXXXXXXX)");
+          }
+        }
+      }
+      return;
+    }
+
+    // Name validation
+    if (name === "name") {
+      setNameTouched(true);
+      validateName(value);
+    }
+
+    // Password validation
+    if (name === "password") {
+      setPasswordTouched(true);
+      validatePassword(value);
+    }
+
+    // Email validation
+    if (name === "email") {
+      setEmailTouched(true);
+      setEmailAvailable(null);
+      setEmailError("");
+    }
+
     setFormData({ ...formData, [name]: value });
 
-    // Apply logic for department (exactly from profile page)
+    // Department logic
     if (name === "department") {
       if (value === "other") {
         setShowOtherDepartment(true);
@@ -61,62 +191,66 @@ const OrganizerRegister = () => {
     setOtherDepartmentValue(e.target.value);
   };
 
-  const validate = () => {
-    const { name, email, phone, department, password, confirmPassword } = formData;
-
-    // Name validation
-    if (!/^[a-zA-Z\s]{3,}$/.test(name.trim())) {
-      return "Name must be at least 3 characters and contain only letters.";
-    }
-
-    // Email validation
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return "Please enter a valid email address.";
-    }
-
-    // Phone validation
-    if (!/^03[0-9]{9}$/.test(phone)) {
-      return "Phone must be 11 digits and start with 03 (e.g. 03001234567).";
-    }
-
-    // Department validation with "other" support
-    if (department === "other") {
-      if (!otherDepartmentValue.trim()) {
-        return "Please specify your department.";
-      }
-    } else if (!department) {
-      return "Please select a department.";
-    }
-
-    // Password validation
-    if (!/^(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)) {
-      return "Password must be at least 8 characters, include 1 uppercase letter and 1 number.";
-    }
-
-    // Confirm password
-    if (password !== confirmPassword) {
-      return "Passwords do not match!";
-    }
-
-    return null;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    const validationError = validate();
-    if (validationError) return setError(validationError);
+    // Validate name
+    if (!validateName(formData.name)) {
+      setError("Please enter a valid full name");
+      return;
+    }
+
+    // Department validation
+    if (formData.department === "other") {
+      if (!otherDepartmentValue.trim()) {
+        setError("Please specify your department.");
+        return;
+      }
+    } else if (!formData.department) {
+      setError("Please select a department.");
+      return;
+    }
+
+    // Password validation
+    const isPasswordValid = validatePassword(formData.password);
+    if (!isPasswordValid) {
+      setError("Password must meet all the requirements shown below");
+      return;
+    }
+
+    // Confirm password
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    // Email validation
+    if (emailAvailable === false) {
+      setError("This email is already registered. Please use a different email.");
+      return;
+    }
+
+    // Phone validation
+    if (formData.phone) {
+      if (formData.phone.length !== 11) {
+        setError("Phone number must be exactly 11 digits");
+        return;
+      }
+      if (!formData.phone.startsWith('03')) {
+        setError("Pakistani number must start with 03 (e.g., 03XXXXXXXXX)");
+        return;
+      }
+    }
 
     try {
-      // Determine final department value (exactly from profile page)
       let finalDepartment = formData.department;
       if (formData.department === "other") {
         finalDepartment = otherDepartmentValue;
       }
 
       await axios.post(`${API_URL}/organizers/register`, {
-        name: formData.name,
+        name: formData.name.trim(),
         email: formData.email,
         phone: formData.phone,
         department: finalDepartment,
@@ -125,15 +259,46 @@ const OrganizerRegister = () => {
 
       navigate("/login-organizer");
     } catch (err) {
-      setError(err?.response?.data?.message || "Registration failed");
+      console.error("Server response:", err.response?.data);
+      
+      if (err.response?.data?.message?.includes("email already exists")) {
+        setError("This email is already registered. Please login or use a different email.");
+      } else {
+        setError(err?.response?.data?.message || "Registration failed. Please check all fields.");
+      }
     }
   };
+
+  // Get password strength
+  const getPasswordStrength = () => {
+    const validCount = Object.values(passwordErrors).filter(val => val === true).length;
+    if (validCount === 3) return { text: "Strong", color: "text-green-600", bg: "bg-green-100" };
+    if (validCount >= 2) return { text: "Medium", color: "text-yellow-600", bg: "bg-yellow-100" };
+    if (validCount >= 1) return { text: "Weak", color: "text-red-600", bg: "bg-red-100" };
+    return { text: "", color: "", bg: "" };
+  };
+
+  const strength = getPasswordStrength();
+
+  const departments = [
+    { value: "", label: "Select Department" },
+    { value: "cs", label: "Computer Science" },
+    { value: "math", label: "Mathematics" },
+    { value: "hssc2", label: "HSSC II" },
+    { value: "hssc1", label: "HSSC I" },
+    { value: "10", label: "Grade 10" },
+    { value: "9", label: "Grade 9" },
+    { value: "8", label: "Grade 8" },
+    { value: "7", label: "Grade 7" },
+    { value: "6", label: "Grade 6" },
+    { value: "5", label: "Grade 5" },
+  ];
 
   return (
     <div className="min-h-screen flex flex-col bg-linear-to-br from-[#F3E5FF] to-[#FFFFFF]">
       <Navbar />
 
-      <main className="flex-1 flex items-center justify-center p-6 lg:p-16">
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-16">
         <div className="w-full max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl flex overflow-hidden">
 
           {/* LEFT SIDE — SVG Illustration */}
@@ -195,68 +360,138 @@ const OrganizerRegister = () => {
           </div>
 
           {/* RIGHT SIDE — Form */}
-          <div className="w-full lg:w-1/2 p-8 sm:p-12">
+          <div className="w-full lg:w-1/2 p-6 sm:p-8 lg:p-12 overflow-y-auto max-h-[90vh] lg:max-h-full">
             <h2 className="text-3xl text-center font-bold text-black mb-2">
               Organizer Registration
             </h2>
-            <p className="text-gray-500 mb-6 text-center">
+            <p className="text-gray-500 mb-6 text-center text-sm">
               Create your account to start organizing events
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
 
-              {/* Full Name */}
+              {/* Full Name with validation */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">
+                <label className="block mb-2 font-bold text-gray-700 text-sm">
                   Full Name *
                 </label>
-                <input 
-                  type="text" 
-                  name="name" 
-                  placeholder="Enter Full Name" 
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" 
-                  required 
-                />
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    name="name" 
+                    placeholder="Enter Full Name" 
+                    value={formData.name}
+                    onChange={handleChange}
+                    className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-10 ${
+                      nameTouched && !nameError && formData.name.length > 0 ? "border-green-400" : ""
+                    } ${
+                      nameTouched && nameError ? "border-red-400" : ""
+                    }`}
+                    required 
+                  />
+                  {nameTouched && !nameError && formData.name.length > 0 && (
+                    <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500" size={18} />
+                  )}
+                  {nameTouched && nameError && (
+                    <XCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-red-500" size={18} />
+                  )}
+                </div>
+                {nameTouched && nameError && (
+                  <p className="text-red-500 text-xs font-semibold mt-1 flex items-center gap-1">
+                    <AlertCircle size={12} />
+                    {nameError}
+                  </p>
+                )}
               </div>
 
-              {/* Email */}
+              {/* Email with availability check */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">
+                <label className="block mb-2 font-bold text-gray-700 text-sm">
                   Email *
                 </label>
-                <input 
-                  type="email" 
-                  name="email" 
-                  placeholder="Enter Email" 
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" 
-                  required 
-                />
+                <div className="relative">
+                  <input 
+                    type="email" 
+                    name="email" 
+                    placeholder="Enter Email" 
+                    value={formData.email}
+                    onChange={handleChange}
+                    className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-12 ${
+                      emailError ? "border-red-400 focus:ring-red-400" : 
+                      emailAvailable === true && emailTouched ? "border-green-400" : ""
+                    }`}
+                    required 
+                  />
+                  {isEmailChecking && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="w-5 h-5 border-2 border-[#8b4fa2] border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                  {!isEmailChecking && emailTouched && emailAvailable === true && (
+                    <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500" size={20} />
+                  )}
+                  {!isEmailChecking && emailTouched && emailAvailable === false && (
+                    <XCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-red-500" size={20} />
+                  )}
+                </div>
+                {emailError && (
+                  <p className="text-red-500 text-xs font-semibold mt-1 flex items-center gap-1">
+                    <AlertCircle size={14} />
+                    {emailError}
+                  </p>
+                )}
+                {emailTouched && emailAvailable === true && !emailError && (
+                  <p className="text-green-500 text-xs font-semibold mt-1 flex items-center gap-1">
+                    <CheckCircle size={14} />
+                    Email is available ✅
+                  </p>
+                )}
               </div>
 
-              {/* Phone */}
+              {/* Phone with validation */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">
+                <label className="block mb-2 font-bold text-gray-700 text-sm">
                   Phone *
                 </label>
-                <input 
-                  type="text" 
-                  name="phone" 
-                  placeholder="e.g. 03001234567" 
-                  value={formData.phone}
-                  onChange={handleChange}
-                  maxLength={11}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" 
-                  required 
-                />
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    name="phone" 
+                    placeholder="03XXXXXXXXX (11 digits)" 
+                    value={formData.phone}
+                    onChange={handleChange}
+                    maxLength={11}
+                    className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-10 ${
+                      phoneError ? "border-red-400 focus:ring-red-400" : ""
+                    } ${
+                      formData.phone && formData.phone.length === 11 && formData.phone.startsWith('03') ? "border-green-400" : ""
+                    }`}
+                    required 
+                  />
+                  {formData.phone && formData.phone.length === 11 && formData.phone.startsWith('03') && (
+                    <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500" size={18} />
+                  )}
+                  {phoneError && (
+                    <XCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-red-500" size={18} />
+                  )}
+                </div>
+                {phoneError && (
+                  <p className="text-red-500 text-xs font-semibold mt-1">{phoneError}</p>
+                )}
+                {formData.phone && formData.phone.length === 11 && formData.phone.startsWith('03') && (
+                  <p className="text-green-500 text-xs font-semibold mt-1 flex items-center gap-1">
+                    <CheckCircle size={14} />
+                    Valid Pakistani number ✅
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Enter 11 digits starting with 03 (e.g., 03331234567)
+                </p>
               </div>
 
-              {/* Department Dropdown with Other option */}
+              {/* Department Dropdown */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">
+                <label className="block mb-2 font-bold text-gray-700 text-sm">
                   Department *
                 </label>
                 <select 
@@ -273,10 +508,10 @@ const OrganizerRegister = () => {
                 </select>
               </div>
 
-              {/* Other Department Text Input - Exactly from profile page */}
+              {/* Other Department Text Input */}
               {showOtherDepartment && (
                 <div>
-                  <label className="block mb-2 font-bold text-gray-700">
+                  <label className="block mb-2 font-bold text-gray-700 text-sm">
                     Specify Department *
                   </label>
                   <input
@@ -290,19 +525,22 @@ const OrganizerRegister = () => {
                 </div>
               )}
 
-              {/* Password with Show/Hide */}
+              {/* Password with validation */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">
+                <label className="block mb-2 font-bold text-gray-700 text-sm">
                   Password *
                 </label>
                 <div className="relative">
                   <input 
                     type={showPassword ? "text" : "password"} 
                     name="password" 
-                    placeholder="Min 8 chars, 1 uppercase, 1 number" 
+                    placeholder="Enter Password" 
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-12" 
+                    className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-12 ${
+                      passwordTouched && !Object.values(passwordErrors).every(val => val === true) ? "border-yellow-400" : 
+                      passwordTouched && Object.values(passwordErrors).every(val => val === true) ? "border-green-400" : ""
+                    }`}
                     required 
                   />
                   <button
@@ -313,12 +551,46 @@ const OrganizerRegister = () => {
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Minimum 8 characters, 1 uppercase, 1 number</p>
+
+                {/* Password Strength Indicator */}
+                {passwordTouched && formData.password.length > 0 && (
+                  <div className="mt-2">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${strength.color} ${strength.bg}`}>
+                        {strength.text}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 mb-2">
+                      {Object.values(passwordErrors).map((valid, index) => (
+                        <div
+                          key={index}
+                          className={`h-1 flex-1 rounded-full transition-all ${
+                            valid ? "bg-green-500" : "bg-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div className="space-y-1">
+                      <p className={`text-xs flex items-center gap-1.5 ${passwordErrors.length ? "text-green-600" : "text-gray-400"}`}>
+                        {passwordErrors.length ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                        At least 8 characters
+                      </p>
+                      <p className={`text-xs flex items-center gap-1.5 ${passwordErrors.uppercase ? "text-green-600" : "text-gray-400"}`}>
+                        {passwordErrors.uppercase ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                        At least one uppercase letter (A-Z)
+                      </p>
+                      <p className={`text-xs flex items-center gap-1.5 ${passwordErrors.number ? "text-green-600" : "text-gray-400"}`}>
+                        {passwordErrors.number ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                        At least one number (0-9)
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Confirm Password with Show/Hide */}
+              {/* Confirm Password */}
               <div>
-                <label className="block mb-2 font-bold text-gray-700">
+                <label className="block mb-2 font-bold text-gray-700 text-sm">
                   Confirm Password *
                 </label>
                 <div className="relative">
@@ -329,7 +601,8 @@ const OrganizerRegister = () => {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-12 ${
-                      error && error.includes("Passwords") ? "border-red-400" : ""
+                      formData.confirmPassword && formData.password !== formData.confirmPassword ? "border-red-400" :
+                      formData.confirmPassword && formData.password === formData.confirmPassword ? "border-green-400" : ""
                     }`}
                     required 
                   />
@@ -341,11 +614,24 @@ const OrganizerRegister = () => {
                     {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
+                {formData.confirmPassword && formData.password === formData.confirmPassword && (
+                  <p className="text-green-500 text-xs font-semibold mt-1 flex items-center gap-1">
+                    <CheckCircle size={14} />
+                    Passwords match ✅
+                  </p>
+                )}
+                {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                  <p className="text-red-500 text-xs font-semibold mt-1 flex items-center gap-1">
+                    <XCircle size={14} />
+                    Passwords do not match
+                  </p>
+                )}
               </div>
 
               {/* Error Message */}
               {error && (
-                <p className="text-red-500 text-sm font-semibold bg-red-50 p-3 rounded-xl">
+                <p className="text-red-500 text-sm font-semibold bg-red-50 p-3 rounded-xl flex items-center gap-2">
+                  <AlertCircle size={18} />
                   {error}
                 </p>
               )}
@@ -353,7 +639,8 @@ const OrganizerRegister = () => {
               {/* Submit Button */}
               <button 
                 type="submit"
-                className="w-full bg-[#8b4fa2] hover:bg-[#724286] text-white py-4 rounded-xl font-bold transition duration-300 transform hover:scale-105 active:scale-95 shadow-lg"
+                disabled={emailAvailable === false || isEmailChecking || !Object.values(passwordErrors).every(val => val === true)}
+                className="w-full bg-[#8b4fa2] hover:bg-[#724286] text-white py-4 rounded-xl font-bold transition transform hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 Create Account
               </button>

@@ -37,7 +37,7 @@ exports.registerUser = async (req, res) => {
         const user = await UserModel.create(userData);
 
         // Generate JWT
-       const token = jwt.sign({ id: user._id, role, name: user.name, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' })
+        const token = jwt.sign({ id: user._id, role, name: user.name, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.status(201).json({ message: 'User registered successfully', token, user });
     } catch (error) {
@@ -64,10 +64,95 @@ exports.loginUser = async (req, res) => {
         if (!isMatch) return res.status(401).json({ message: 'Incorrect password' });
 
         // Generate JWT
-      const token = jwt.sign({ id: user._id, role, name: user.name, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const token = jwt.sign({ id: user._id, role, name: user.name, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.json({ message: 'Login successful', token, user });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+// ------------------ CHECK EMAIL AVAILABILITY ------------------
+exports.checkEmail = async (req, res) => {
+    try {
+        const { email } = req.query;
+        
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required', exists: false });
+        }
+
+        // Check in all collections
+        const [studentExists, organizerExists, adminExists] = await Promise.all([
+            Student.findOne({ email }),
+            Organizer.findOne({ email }),
+            Admin.findOne({ email })
+        ]);
+
+        const exists = !!(studentExists || organizerExists || adminExists);
+
+        res.json({ 
+            exists,
+            message: exists ? 'Email already registered' : 'Email available'
+        });
+    } catch (error) {
+        console.error('Email check error:', error);
+        res.status(500).json({ 
+            message: 'Error checking email',
+            exists: false 
+        });
+    }
+};
+
+// ------------------ CHECK STUDENT EMAIL (for backward compatibility) ------------------
+exports.checkStudentEmail = async (req, res) => {
+    try {
+        const { email } = req.query;
+        
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required', exists: false });
+        }
+
+        const exists = await Student.findOne({ email });
+        
+        res.json({ exists: !!exists });
+    } catch (error) {
+        console.error('Student email check error:', error);
+        res.status(500).json({ exists: false });
+    }
+};
+
+// ------------------ CHECK ORGANIZER EMAIL ------------------
+exports.checkOrganizerEmail = async (req, res) => {
+    try {
+        const { email } = req.query;
+        
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required', exists: false });
+        }
+
+        const exists = await Organizer.findOne({ email });
+        
+        res.json({ exists: !!exists });
+    } catch (error) {
+        console.error('Organizer email check error:', error);
+        res.status(500).json({ exists: false });
+    }
+};
+
+// ------------------ CHECK ADMIN EMAIL ------------------
+exports.checkAdminEmail = async (req, res) => {
+    try {
+        const { email } = req.query;
+        
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required', exists: false });
+        }
+
+        const exists = await Admin.findOne({ email });
+        
+        res.json({ exists: !!exists });
+    } catch (error) {
+        console.error('Admin email check error:', error);
+        res.status(500).json({ exists: false });
     }
 };

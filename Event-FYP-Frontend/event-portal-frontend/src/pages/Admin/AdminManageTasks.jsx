@@ -213,10 +213,11 @@ const AdminTasks = () => {
     setShowViewModal(true);
   };
 
-  useEffect(() => {
-    fetchOverview();
-    fetchEvents();
-  }, []);
+ useEffect(() => {
+  if (!token) return;
+  fetchOverview();
+  fetchEvents();
+}, [token]);
 
   useEffect(() => {
     if (activeTab === "allTasks") fetchAllTasks();
@@ -969,13 +970,13 @@ const AdminTasks = () => {
         </div>
       )}
 
-      <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeIn { animation: fadeIn 0.25s ease-out forwards; }
-      `}</style>
+     <style>{`
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fadeIn { animation: fadeIn 0.25s ease-out forwards; }
+`}</style>
     </div>
   );
 };

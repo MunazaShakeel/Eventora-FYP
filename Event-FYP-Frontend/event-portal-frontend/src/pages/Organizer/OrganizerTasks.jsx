@@ -136,8 +136,9 @@ const OrganizerTasks = () => {
   };
 
   useEffect(() => {
+     if (!token) return; 
     fetchEvents();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     fetchTasksAndVolunteers(selectedEventId);

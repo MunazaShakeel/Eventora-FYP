@@ -26,8 +26,9 @@ const navigate = useNavigate();
   const [cancellingId, setCancellingId] = useState(null);
 
   useEffect(() => {
+      if (!token) return;
     fetchRegistrations();
-  }, []);
+  }, [token]);
 
   const fetchRegistrations = async () => {
     try {

@@ -74,9 +74,10 @@ const ManageEvents = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
+ useEffect(() => {
+  if (!token) return;
+  fetchEvents();
+}, [token]);
 
   const fetchEvents = async () => {
     try {

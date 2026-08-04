@@ -86,8 +86,9 @@ const ManageStudents = () => {
   };
 
   useEffect(() => {
+    if (!token) return;
     fetchStudents();
-  }, []);
+  }, [token]);
 
   const fetchStudents = async () => {
     try {
@@ -1324,7 +1325,7 @@ const ManageStudents = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;

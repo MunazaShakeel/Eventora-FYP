@@ -197,7 +197,7 @@ const AboutUs = () => {
       className="min-h-screen"
       style={{
         background: "#f7f4fb",
-        fontFamily: "'Manrope', sans-serif",
+       
       }}
     >
       <Navbar />

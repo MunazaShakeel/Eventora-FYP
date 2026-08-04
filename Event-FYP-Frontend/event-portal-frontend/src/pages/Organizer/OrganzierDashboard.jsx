@@ -131,6 +131,7 @@ const OrganizerDashboard = () => {
 
   // ── Main Data Fetch (Safe API Calls) ──
   useEffect(() => {
+   
     if (!token || !user) return;
 
     const fetchAll = async () => {
@@ -169,7 +170,7 @@ const OrganizerDashboard = () => {
           safeFetch(`${API_URL}/api/organizer-dashboard/upcoming-events`, { upcomingEvents: [] }),
           safeFetch(`${API_URL}/api/organizer-dashboard/recent-registrations`, { recentRegistrations: [] }),
           safeFetch(`${API_URL}/api/organizer-dashboard/registration-trends`, { trends: [] }),
-          safeFetch(`${API_URL}/api/organizers/${organizerId}`, { organizer: { name: "Organizer" } }),
+         safeFetch(`${API_URL}/api/organizers/me`, { organizer: { name: "Organizer" } }),
         ]);
 
         // Set states with safe fallbacks

@@ -23,6 +23,7 @@ const EventAttendance = () => {
   const [eventVenue, setEventVenue] = useState("");
 
   useEffect(() => {
+      if (!token) return;
     const fetchAttendance = async () => {
       try {
         // ✅ Use API_URL

@@ -312,7 +312,9 @@ const AdminDashboard = () => {
 
   // ── Data fetch ──
   const fetchAllData = async () => {
+    
     try {
+      setError(""); 
       const headers = { Authorization: `Bearer ${token}` };
       const [adminRes, dashRes] = await Promise.all([
         axios.get(`${API_URL}/admin/dashboard`, { headers }),
@@ -412,6 +414,8 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
+    
+      if (!token) return;  
     fetchAllData();
     fetchNotifications();
     setTimeout(() => setAnimate(true), 200);
@@ -593,7 +597,8 @@ const AdminDashboard = () => {
         .float-anim { animation: float 3s ease-in-out infinite; }
       `}</style>
 
-      <div className="flex min-h-screen bg-gray-50" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div className="flex min-h-screen bg-gray-50">
+        
         <AdminSidebar />
 
         <main className="flex-1 md:ml-64 p-6 md:p-8 pb-28 md:pb-8">

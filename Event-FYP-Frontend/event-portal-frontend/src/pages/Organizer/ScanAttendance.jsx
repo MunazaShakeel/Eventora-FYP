@@ -54,6 +54,7 @@ const ScanAttendance = () => {
 
   /* fetch organizer events */
   useEffect(() => {
+        if (!token) return;   
     const fetchEvents = async () => {
       try {
         const res = await axios.get(`${API_URL}/api/organizers/my-events`, {
@@ -67,7 +68,7 @@ const ScanAttendance = () => {
       }
     };
     fetchEvents();
-  }, []);
+  }, [token]);
 
   /* cleanup on unmount */
   useEffect(() => {

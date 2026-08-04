@@ -2,27 +2,29 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../../../components/Navbar";
-import { useAuth } from "../../../context/AuthContext";  // ✅ ADD
+import { useAuth } from "../../../context/AuthContext";
+import { Eye, EyeOff } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";  // ✅ ADD
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const OrganizerLogin = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();  // ✅ ADD
+  const { login } = useAuth();
 
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); //stop page from refreshing on submit
+    e.preventDefault();
     try {
       setError("");
       const res = await axios.post(`${API_URL}/organizers/login`, formData);
-      login(res.data.token);  //
+      login(res.data.token);
       navigate("/organizer-dashboard");
     } catch (err) {
       setError(err?.response?.data?.message || "Login failed");
@@ -119,15 +121,37 @@ const OrganizerLogin = () => {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block mb-2 font-bold text-gray-700">Email</label>
-                <input type="email" name="email" placeholder="Enter Email" onChange={handleChange}
-                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" required />
+                <input 
+                  type="email" 
+                  name="email" 
+                  placeholder="Enter Email" 
+                  onChange={handleChange}
+                  className="w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition" 
+                  required 
+                />
               </div>
 
               <div>
                 <label className="block mb-2 font-bold text-gray-700">Password</label>
-                <input type="password" name="password" placeholder="Enter Password" onChange={handleChange}
-                  className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition ${error ? "border-red-400" : ""}`}
-                  required />
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    name="password" 
+                    placeholder="Enter Password" 
+                    onChange={handleChange}
+                    className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-12 ${
+                      error ? "border-red-400" : ""
+                    }`}
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#8b4fa2] transition"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
 
               {error && <p className="text-red-500 text-sm font-semibold">{error}</p>}

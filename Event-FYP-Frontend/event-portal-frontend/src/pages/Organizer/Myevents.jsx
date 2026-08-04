@@ -52,8 +52,9 @@ const MyEvents = () => {
   };
 
   useEffect(() => {
+     if (!token) return; 
     fetchEvents();
-  }, []);
+  }, [token]);
 
   // Apply filters whenever events, activeFilter, or searchTerm changes
   useEffect(() => {

@@ -59,6 +59,7 @@ const OrganizerFeedback = () => {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
+      if (!token) return; 
     const init = async () => {
       try {
         setError(null);

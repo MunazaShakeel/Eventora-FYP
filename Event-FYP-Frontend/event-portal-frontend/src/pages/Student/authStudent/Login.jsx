@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../../components/Navbar";
-import { useAuth } from "../../../context/AuthContext";  // ✅ ADD
+import { useAuth } from "../../../context/AuthContext";
+import { Eye, EyeOff } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -16,6 +17,7 @@ const Login = () => {
   });
 
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -35,9 +37,7 @@ const Login = () => {
         formData
       );
 
-        login(res.data.token);  
-     
-
+      login(res.data.token);  
       navigate("/dashboard");
     } catch (err) {
       setError(err?.response?.data?.message || "Login failed");
@@ -79,21 +79,30 @@ const Login = () => {
               />
             </div>
 
-            {/* Password */}
+            {/* Password with Show/Hide */}
             <div>
               <label className="block mb-2 font-semibold text-gray-700">
                 Password
               </label>
-              <input
-                type="password"
-                name="password"
-                placeholder="Enter Password"
-                onChange={handleChange}
-                className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition ${
-                  error ? "border-red-400" : ""
-                }`}
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="Enter Password"
+                  onChange={handleChange}
+                  className={`w-full p-4 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-[#8b4fa2] outline-none transition pr-12 ${
+                    error ? "border-red-400" : ""
+                  }`}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#8b4fa2] transition"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -112,7 +121,7 @@ const Login = () => {
 
           <div className="text-center pt-6">
             <p className="text-gray-500 text-sm">
-              Don’t have an account?
+              Don't have an account?
               <span
                 onClick={() => navigate("/register")}
                 className="text-[#8b4fa2] font-bold ml-1 cursor-pointer hover:underline"

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const Navbar = () => {
@@ -8,6 +8,12 @@ const Navbar = () => {
   const [mobileLoginOpen, setMobileLoginOpen] = useState(false);
   const [mobileRegisterOpen, setMobileRegisterOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Refs for dropdowns
+  const loginDropdownRef = useRef(null);
+  const registerDropdownRef = useRef(null);
+  const loginTimeoutRef = useRef(null);
+  const registerTimeoutRef = useRef(null);
 
   const loginItems = [
     { label: "Student Login", to: "/student-login" },
@@ -19,6 +25,14 @@ const Navbar = () => {
     { label: "Register as Student", to: "/student-register" },
     { label: "Register as Organizer", to: "/register-organizer" },
   ];
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (loginTimeoutRef.current) clearTimeout(loginTimeoutRef.current);
+      if (registerTimeoutRef.current) clearTimeout(registerTimeoutRef.current);
+    };
+  }, []);
 
   // Function to handle Events click
   const handleEventsClick = (e) => {
@@ -45,13 +59,80 @@ const Navbar = () => {
     setMobileMenuOpen(false);
   };
 
+  // Stable login dropdown handlers
+  const handleLoginMouseEnter = () => {
+    if (loginTimeoutRef.current) {
+      clearTimeout(loginTimeoutRef.current);
+      loginTimeoutRef.current = null;
+    }
+    setLoginOpen(true);
+  };
+
+  const handleLoginMouseLeave = () => {
+    loginTimeoutRef.current = setTimeout(() => {
+      setLoginOpen(false);
+      loginTimeoutRef.current = null;
+    }, 150);
+  };
+
+  // Stable register dropdown handlers
+  const handleRegisterMouseEnter = () => {
+    if (registerTimeoutRef.current) {
+      clearTimeout(registerTimeoutRef.current);
+      registerTimeoutRef.current = null;
+    }
+    setRegisterOpen(true);
+  };
+
+  const handleRegisterMouseLeave = () => {
+    registerTimeoutRef.current = setTimeout(() => {
+      setRegisterOpen(false);
+      registerTimeoutRef.current = null;
+    }, 150);
+  };
+
+  // Toggle handlers with proper state management
+  const toggleMobileLogin = (e) => {
+    e.stopPropagation();
+    setMobileLoginOpen(prev => !prev);
+    // Close register if open
+    if (mobileRegisterOpen) {
+      setMobileRegisterOpen(false);
+    }
+  };
+
+  const toggleMobileRegister = (e) => {
+    e.stopPropagation();
+    setMobileRegisterOpen(prev => !prev);
+    // Close login if open
+    if (mobileLoginOpen) {
+      setMobileLoginOpen(false);
+    }
+  };
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(prev => !prev);
+    // Close mobile submenus when closing main menu
+    if (mobileMenuOpen) {
+      setMobileLoginOpen(false);
+      setMobileRegisterOpen(false);
+    }
+  };
+
+  // Close mobile menu when clicking a link
+  const handleMobileLinkClick = () => {
+    setMobileMenuOpen(false);
+    setMobileLoginOpen(false);
+    setMobileRegisterOpen(false);
+  };
+
   return (
     <nav className="w-full bg-white shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex justify-between items-center">
           
           {/* Logo - Left Side */}
-          <Link to="/" className="flex items-center gap-2 sm:gap-3 z-50" onClick={handleNavLinkClick}>
+          <Link to="/" className="flex items-center gap-2 sm:gap-3 z-50" onClick={handleMobileLinkClick}>
             <span
               className="text-3xl sm:text-4xl md:text-5xl font-bold relative"
               style={{ fontFamily: "Great Vibes, cursive" }}
@@ -86,9 +167,10 @@ const Navbar = () => {
           <div className="hidden md:flex gap-2 lg:gap-3 items-center">
             {/* Login Dropdown */}
             <div
+              ref={loginDropdownRef}
               className="relative"
-              onMouseEnter={() => setLoginOpen(true)}
-              onMouseLeave={() => setLoginOpen(false)}
+              onMouseEnter={handleLoginMouseEnter}
+              onMouseLeave={handleLoginMouseLeave}
             >
               <button className="flex items-center gap-2 px-3 lg:px-5 py-1.5 lg:py-2 font-semibold border border-[#FFE66D] text-[#1A1A1A] hover:text-[#9B59B6] transition rounded-lg text-sm lg:text-base whitespace-nowrap">
                 Login
@@ -116,9 +198,10 @@ const Navbar = () => {
 
             {/* Register Dropdown */}
             <div
+              ref={registerDropdownRef}
               className="relative"
-              onMouseEnter={() => setRegisterOpen(true)}
-              onMouseLeave={() => setRegisterOpen(false)}
+              onMouseEnter={handleRegisterMouseEnter}
+              onMouseLeave={handleRegisterMouseLeave}
             >
               <button className="flex items-center gap-2 px-3 lg:px-5 py-1.5 lg:py-2 bg-[#9B59B6] text-white font-semibold rounded-lg hover:opacity-90 transition text-sm lg:text-base whitespace-nowrap">
                 Register
@@ -147,7 +230,7 @@ const Navbar = () => {
 
           {/* Mobile Menu Button */}
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={toggleMobileMenu}
             className="md:hidden z-50 p-2 rounded-lg hover:bg-gray-100 transition"
             aria-label="Toggle menu"
           >
@@ -166,7 +249,7 @@ const Navbar = () => {
             <div className="space-y-3">
               <Link
                 to="/"
-                onClick={handleNavLinkClick}
+                onClick={handleMobileLinkClick}
                 className="block py-3 px-4 text-lg font-semibold text-[#1A1A1A] hover:bg-purple-50 hover:text-[#9B59B6] rounded-lg transition"
               >
                 Home
@@ -181,7 +264,7 @@ const Navbar = () => {
 
               <Link
                 to="/about"
-                onClick={handleNavLinkClick}
+                onClick={handleMobileLinkClick}
                 className="block py-3 px-4 text-lg font-semibold text-[#1A1A1A] hover:bg-purple-50 hover:text-[#9B59B6] rounded-lg transition"
               >
                 About
@@ -193,7 +276,7 @@ const Navbar = () => {
             {/* Mobile Login Section */}
             <div className="space-y-2">
               <button
-                onClick={() => setMobileLoginOpen(!mobileLoginOpen)}
+                onClick={toggleMobileLogin}
                 className="w-full flex items-center justify-between py-3 px-4 text-lg font-semibold text-[#1A1A1A] hover:bg-purple-50 rounded-lg transition"
               >
                 <span>Login</span>
@@ -206,7 +289,7 @@ const Navbar = () => {
                     <Link
                       key={label}
                       to={to}
-                      onClick={handleNavLinkClick}
+                      onClick={handleMobileLinkClick}
                       className="block py-2 px-4 text-base text-gray-600 hover:bg-purple-50 hover:text-[#9B59B6] rounded-lg transition"
                     >
                       {label}
@@ -219,7 +302,7 @@ const Navbar = () => {
             {/* Mobile Register Section */}
             <div className="space-y-2">
               <button
-                onClick={() => setMobileRegisterOpen(!mobileRegisterOpen)}
+                onClick={toggleMobileRegister}
                 className="w-full flex items-center justify-between py-3 px-4 text-lg font-semibold text-[#9B59B6] hover:bg-purple-50 rounded-lg transition"
               >
                 <span>Register</span>
@@ -232,7 +315,7 @@ const Navbar = () => {
                     <Link
                       key={label}
                       to={to}
-                      onClick={handleNavLinkClick}
+                      onClick={handleMobileLinkClick}
                       className="block py-2 px-4 text-base text-gray-600 hover:bg-purple-50 hover:text-[#9B59B6] rounded-lg transition"
                     >
                       {label}
@@ -249,7 +332,7 @@ const Navbar = () => {
       {mobileMenuOpen && (
         <div
           className="md:hidden fixed inset-0 bg-black/50 z-30"
-          onClick={() => setMobileMenuOpen(false)}
+          onClick={toggleMobileMenu}
         ></div>
       )}
     </nav>

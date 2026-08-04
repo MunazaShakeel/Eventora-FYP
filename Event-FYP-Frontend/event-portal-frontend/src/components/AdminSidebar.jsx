@@ -36,13 +36,15 @@ const AdminSidebar = () => {
     navigate("/login-admin");
   };
 
-  // ── Notification Functions ──
+  // ── Fetch notifications from API ──
   const fetchNotifications = async () => {
     if (!token) return;
     setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
+
       const response = await axios.get(`${API_URL}/notifications`, { headers });
+
       if (response.data.success) {
         const notifs = response.data.notifications.map(notif => ({
           id: notif._id,
@@ -54,8 +56,9 @@ const AdminSidebar = () => {
           time: notif.createdAt ? new Date(notif.createdAt).toLocaleString() : "",
           icon: getIconByType(notif.type),
           color: getColorByType(notif.type),
-          bg: getBgByType(notif.type),
+          bg: getBgByType(notif.type)
         }));
+
         setNotifications(notifs);
         setUnreadCount(response.data.unreadCount);
       }
@@ -68,31 +71,31 @@ const AdminSidebar = () => {
 
   const getIconByType = (type) => {
     switch (type) {
-      case "event": return "event";
-      case "certificate": return "workspace_premium";
-      case "attendance": return "qr_code_scanner";
-      case "task": return "task_alt";
-      default: return "notifications";
+      case 'event': return 'event';
+      case 'certificate': return 'workspace_premium';
+      case 'attendance': return 'qr_code_scanner';
+      case 'task': return 'task_alt';
+      default: return 'notifications';
     }
   };
 
   const getColorByType = (type) => {
     switch (type) {
-      case "event": return "#8b4fa2";
-      case "certificate": return "#FFE66D";
-      case "attendance": return "#4ECDC4";
-      case "task": return "#FF6B6B";
-      default: return "#8b4fa2";
+      case 'event': return '#8b4fa2';
+      case 'certificate': return '#FFE66D';
+      case 'attendance': return '#4ECDC4';
+      case 'task': return '#FF6B6B';
+      default: return '#8b4fa2';
     }
   };
 
   const getBgByType = (type) => {
     switch (type) {
-      case "event": return "#f5eefa";
-      case "certificate": return "#fff9e6";
-      case "attendance": return "#e6faf8";
-      case "task": return "#ffe6e6";
-      default: return "#f5eefa";
+      case 'event': return '#f5eefa';
+      case 'certificate': return '#fff9e6';
+      case 'attendance': return '#e6faf8';
+      case 'task': return '#ffe6e6';
+      default: return '#f5eefa';
     }
   };
 
@@ -100,8 +103,9 @@ const AdminSidebar = () => {
     if (!token) return;
     try {
       await axios.put(`${API_URL}/notifications/${notificationId}/read`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` }
       });
+
       setNotifications(prev =>
         prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
       );
@@ -115,8 +119,9 @@ const AdminSidebar = () => {
     if (!token) return;
     try {
       await axios.put(`${API_URL}/notifications/read-all`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` }
       });
+
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (err) {
@@ -128,11 +133,14 @@ const AdminSidebar = () => {
     if (!token) return;
     try {
       await axios.delete(`${API_URL}/notifications/${notificationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` }
       });
+
       const deleted = notifications.find(n => n._id === notificationId);
       setNotifications(prev => prev.filter(n => n._id !== notificationId));
-      if (!deleted?.isRead) setUnreadCount(prev => Math.max(0, prev - 1));
+      if (!deleted?.isRead) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
     } catch (err) {
       console.error("Error deleting notification:", err);
     }
@@ -141,7 +149,8 @@ const AdminSidebar = () => {
   // ── Socket Listeners ──
   useEffect(() => {
     if (!socket) return;
-    socket.on("new-notification", (notification) => {
+
+    socket.on('new-notification', (notification) => {
       const newNotif = {
         id: notification._id,
         _id: notification._id,
@@ -152,37 +161,44 @@ const AdminSidebar = () => {
         time: new Date().toLocaleString(),
         icon: getIconByType(notification.type),
         color: getColorByType(notification.type),
-        bg: getBgByType(notification.type),
+        bg: getBgByType(notification.type)
       };
+
       setNotifications(prev => [newNotif, ...prev]);
       setUnreadCount(prev => prev + 1);
+
       showToast(notification);
     });
-    return () => socket.off("new-notification");
+
+    return () => {
+      socket.off('new-notification');
+    };
   }, [socket]);
 
   const showToast = (notification) => {
-    const toast = document.createElement("div");
-    toast.className = "fixed bottom-20 right-4 bg-white rounded-lg shadow-2xl p-3 max-w-sm z-50 animate-slide-up";
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-20 right-4 bg-white rounded-lg shadow-2xl p-3 max-w-sm z-50 animate-slide-up';
     toast.innerHTML = `
       <div class="flex items-start gap-2">
-        <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background:linear-gradient(to right,#8b4fa2,#4ECDC4)">
+        <div class="w-8 h-8 rounded-full bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] flex items-center justify-center">
           <span class="text-white text-sm">🔔</span>
         </div>
         <div class="flex-1">
           <h4 class="font-bold text-gray-800 text-sm">${notification.title}</h4>
           <p class="text-xs text-gray-600">${notification.message}</p>
         </div>
-      </div>`;
+      </div>
+    `;
     document.body.appendChild(toast);
     setTimeout(() => {
-      toast.style.opacity = "0";
+      toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 300);
     }, 4000);
   };
 
   // ── Fetch on mount & interval ──
   useEffect(() => {
+    if (!token) return;
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
@@ -191,13 +207,14 @@ const AdminSidebar = () => {
   // ── Click outside to close notification dropdown ──
   useEffect(() => {
     const handleClick = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // ── Shared Sidebar Content ──
   const SidebarContent = () => (
     <>
       {/* Logo */}
@@ -226,10 +243,8 @@ const AdminSidebar = () => {
                   : "text-gray-500 hover:bg-purple-50 hover:text-[#8b4fa2]"
                 }`}
             >
-              <span
-                className="material-symbols-outlined text-[20px]"
-                style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
-              >
+              <span className="material-symbols-outlined text-[20px]"
+                style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
                 {item.icon}
               </span>
               {item.label}
@@ -260,6 +275,7 @@ const AdminSidebar = () => {
 
       {/* ── MOBILE: Top Header Bar ── */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 shadow-sm px-4 h-14 flex items-center justify-between">
+        {/* Hamburger */}
         <button
           onClick={() => setSidebarOpen(true)}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition"
@@ -267,6 +283,7 @@ const AdminSidebar = () => {
           <span className="material-symbols-outlined text-[22px] text-gray-600">menu</span>
         </button>
 
+        {/* Logo */}
         <span className="text-2xl font-bold" style={{ fontFamily: "Great Vibes, cursive" }}>
           <span className="text-[#9B59B6]">Event</span>
           <span className="text-yellow-500">ora</span>
@@ -275,7 +292,7 @@ const AdminSidebar = () => {
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button
-            onClick={() => setNotifOpen(!notifOpen)}
+            onClick={() => { setNotifOpen(!notifOpen); }}
             className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition relative"
           >
             <span className="material-symbols-outlined text-[22px] text-gray-600">notifications</span>
@@ -286,13 +303,17 @@ const AdminSidebar = () => {
             )}
           </button>
 
+          {/* Notification Dropdown */}
           {notifOpen && (
-            <div className="absolute right-0 top-11 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+            <div className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
                 <p className="text-sm font-black text-gray-800">Notifications</p>
                 <div className="flex items-center gap-2">
                   {unreadCount > 0 && (
-                    <button onClick={markAllAsRead} className="text-[10px] font-bold text-[#8b4fa2] bg-purple-100 px-2 py-0.5 rounded-full hover:bg-purple-200 transition">
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-[10px] font-bold text-[#8b4fa2] bg-purple-100 px-2 py-0.5 rounded-full hover:bg-purple-200 transition"
+                    >
                       Mark all read
                     </button>
                   )}
@@ -301,6 +322,7 @@ const AdminSidebar = () => {
                   </span>
                 </div>
               </div>
+
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
@@ -315,10 +337,11 @@ const AdminSidebar = () => {
                   {notifications.map((n) => (
                     <div
                       key={n.id}
-                      className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? "bg-purple-50/30" : ""}`}
+                      className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? 'bg-purple-50/30' : ''}`}
                       onClick={() => !n.isRead && markAsRead(n._id)}
                     >
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: n.bg }}>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                        style={{ backgroundColor: n.bg }}>
                         <span className="material-symbols-outlined text-[16px]" style={{ color: n.color, fontVariationSettings: "'FILL' 1" }}>
                           {n.icon}
                         </span>
@@ -327,7 +350,10 @@ const AdminSidebar = () => {
                         <p className="text-xs font-semibold text-gray-700 leading-snug">{n.message}</p>
                         <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); deleteNotification(n._id); }} className="text-gray-300 hover:text-red-400 transition">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteNotification(n._id); }}
+                        className="text-gray-300 hover:text-red-400 transition"
+                      >
                         <span className="material-symbols-outlined text-[14px]">close</span>
                       </button>
                     </div>
@@ -342,7 +368,10 @@ const AdminSidebar = () => {
       {/* ── MOBILE SIDEBAR OVERLAY ── */}
       {sidebarOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
+          />
           <aside className="relative w-64 h-full bg-white flex flex-col shadow-2xl animate-slideIn">
             <button
               onClick={() => setSidebarOpen(false)}
@@ -356,36 +385,41 @@ const AdminSidebar = () => {
       )}
 
       {/* ── MOBILE BOTTOM NAV ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-1 z-40 shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-40 shadow-lg">
         {[
           { label: "Home", path: "/admin-dashboard", icon: "dashboard" },
           { label: "Events", path: "/admin/events", icon: "event" },
           { label: "Students", path: "/admin/students", icon: "school" },
           { label: "Reports", path: "/admin/attendance-reports", icon: "bar_chart" },
+          {
+            label: "More",
+            path: "#",
+            icon: "grid_view",
+            onClick: () => setSidebarOpen(true)
+          },
         ].map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all ${isActive ? "text-[#8b4fa2]" : "text-gray-400"}`}
+              key={item.label}
+              onClick={() => {
+                if (item.onClick) {
+                  item.onClick();
+                } else {
+                  navigate(item.path);
+                }
+              }}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all
+                ${isActive ? "text-[#8b4fa2]" : "text-gray-400"}`}
             >
-              <span className="material-symbols-outlined text-[20px] sm:text-[22px]" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
+              <span className="material-symbols-outlined text-[22px]"
+                style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
                 {item.icon}
               </span>
-              <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
+              <span className="text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
             </button>
           );
         })}
-
-        {/* "More" poora sidebar menu kholta hai */}
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all ${sidebarOpen ? "text-[#8b4fa2]" : "text-gray-400"}`}
-        >
-          <span className="material-symbols-outlined text-[20px] sm:text-[22px]">grid_view</span>
-          <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-tight">More</span>
-        </button>
       </nav>
 
       <style>{`

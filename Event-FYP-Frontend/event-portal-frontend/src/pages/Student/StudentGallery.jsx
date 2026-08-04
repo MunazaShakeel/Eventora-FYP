@@ -32,19 +32,17 @@ const StudentGallery = () => {
   };
 
   // Fetch registered events
-  // StudentGallery.jsx - No changes needed, it will work!
-useEffect(() => {
+  useEffect(() => {
   (async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/registrations/my-registrations`, { headers });
       const registrations = res.data?.data || [];
       
-      // ✅ Ab event_id mein image_url bhi hoga
       const evList = registrations.map(r => r.event_id).filter(e => e && typeof e === 'object');
       
       console.log('Events with images:', evList.map(e => ({ 
         title: e.title, 
-        image_url: e.image_url  // ✅ Now this will show the image URL
+        image_url: e.image_url
       })));
       
       setEvents(evList);
@@ -176,12 +174,100 @@ useEffect(() => {
         .sg-noscroll::-webkit-scrollbar { display: none; }
         .sg-noscroll { scrollbar-width: none; }
 
-        @media (max-width: 1100px) { .sg-masonry { column-count: 2 !important; } }
-        @media (max-width: 640px) { .sg-masonry { column-count: 1 !important; } }
+        /* Responsive Masonry - Mobile optimized */
+        @media (max-width: 640px) { 
+          .sg-masonry { 
+            column-count: 2 !important; 
+            gap: 8px !important;
+          }
+          .sg-masonry .sg-card {
+            margin-bottom: 8px !important;
+            border-radius: 10px !important;
+          }
+        }
+        @media (max-width: 420px) { 
+          .sg-masonry { 
+            column-count: 2 !important; 
+            gap: 6px !important;
+          }
+          .sg-masonry .sg-card {
+            margin-bottom: 6px !important;
+            border-radius: 8px !important;
+          }
+        }
+        @media (min-width: 641px) and (max-width: 1024px) { 
+          .sg-masonry { 
+            column-count: 2 !important; 
+            gap: 14px !important;
+          }
+        }
+        @media (min-width: 1025px) { 
+          .sg-masonry { 
+            column-count: 3 !important; 
+            gap: 18px !important;
+          }
+        }
+        
+        /* Sidebar responsive */
         @media (max-width: 768px) {
           .sg-main { margin-left: 0 !important; }
-          .sg-header { left: 0 !important; }
-          .sg-content { padding-left: 1rem !important; padding-right: 1rem !important; }
+          .sg-header { left: 0 !important; padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+          .sg-content { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+        }
+        
+        /* Hero card responsive - smaller on mobile */
+        @media (max-width: 480px) {
+          .sg-hcard { 
+            width: 130px !important; 
+            flex: 0 0 130px !important;
+          }
+          .sg-hcard .h-44 { 
+            height: 130px !important; 
+          }
+        }
+        @media (min-width: 481px) and (max-width: 768px) {
+          .sg-hcard { 
+            width: 170px !important; 
+            flex: 0 0 170px !important;
+          }
+        }
+        
+        /* Mobile filter pills - smaller */
+        @media (max-width: 640px) {
+          .sg-pill { 
+            font-size: 0.6rem !important; 
+            padding: 0.4rem 0.65rem !important;
+          }
+          .sg-pill .material-symbols-outlined {
+            font-size: 0.8rem !important;
+          }
+        }
+
+        /* Mobile action buttons - smaller */
+        @media (max-width: 640px) {
+          .sg-actions .sg-icon-btn {
+            width: 24px !important;
+            height: 24px !important;
+          }
+          .sg-actions .sg-icon-btn .material-symbols-outlined {
+            font-size: 0.7rem !important;
+          }
+        }
+
+        /* Hide scrollbar */
+        .sg-noscroll::-webkit-scrollbar { display: none; }
+        .sg-noscroll { scrollbar-width: none; }
+
+        /* Fix for small screens */
+        @media (max-width: 380px) {
+          .sg-masonry { 
+            column-count: 2 !important; 
+            gap: 4px !important;
+          }
+          .sg-masonry .sg-card {
+            margin-bottom: 4px !important;
+            border-radius: 6px !important;
+          }
         }
       `}</style>
 
@@ -190,18 +276,18 @@ useEffect(() => {
 
         <main className="sg-main flex-1 min-h-screen md:ml-64">
           {/* HEADER */}
-          <header className="sg-header fixed top-0 right-0 z-50 flex items-center justify-between gap-4 px-4 md:px-8 py-3 bg-white/90 backdrop-blur-md border-b border-purple-200/20 md:left-64">
-            <div className="relative flex-1 max-w-md">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">search</span>
-              <input type="text" placeholder="Search events & memories…"
+          <header className="sg-header fixed top-0 right-0 z-50 flex flex-wrap items-center justify-between gap-1 px-2 sm:px-4 md:px-8 py-2 sm:py-3 bg-white/90 backdrop-blur-md border-b border-purple-200/20 md:left-64">
+            <div className="relative flex-1 min-w-35 max-w-full md:max-w-md">
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm sm:text-base">search</span>
+              <input type="text" placeholder="Search events…"
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setSelectedEvent(''); setMediaItems([]); }}
-                className="w-full rounded-full border border-purple-200/40 bg-white py-2 pl-9 pr-8 text-sm text-gray-800 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                className="w-full rounded-full border border-purple-200/40 bg-white py-1.5 sm:py-2 pl-7 sm:pl-9 pr-7 sm:pr-8 text-xs sm:text-sm text-gray-800 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
               />
               {searchQuery && (
                 <button onClick={() => { setSearchQuery(''); setSelectedEvent(''); setMediaItems([]); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <span className="material-symbols-outlined text-base">close</span>
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <span className="material-symbols-outlined text-sm sm:text-base">close</span>
                 </button>
               )}
             </div>
@@ -209,7 +295,7 @@ useEffect(() => {
           </header>
 
           {/* MAIN CONTENT */}
-          <div className="sg-content max-w-6xl mx-auto px-4 md:px-6 pt-20 pb-12">
+          <div className="sg-content max-w-6xl mx-auto px-2 sm:px-4 md:px-6 pt-16 sm:pt-20 pb-8 sm:pb-12">
             
             {/* HERO SECTION */}
          
@@ -225,43 +311,42 @@ useEffect(() => {
 
             {/* SEARCH INFO */}
             {searchQuery && (
-              <div className="sg-fadein mb-5 flex items-center gap-2">
-                <span className="material-symbols-outlined text-purple-600 text-base">search</span>
-                <span className="text-sm text-gray-500 font-medium">
+              <div className="sg-fadein mb-3 sm:mb-5 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="material-symbols-outlined text-purple-600 text-sm sm:text-base">search</span>
+                <span className="text-xs sm:text-sm text-gray-500 font-medium">
                   {searchedEvents.length > 0
                     ? `${searchedEvents.length} event${searchedEvents.length > 1 ? 's' : ''} for "${searchQuery}"`
                     : `No events found for "${searchQuery}"`}
                 </span>
                 <button onClick={() => { setSearchQuery(''); setSelectedEvent(''); setMediaItems([]); }}
-                  className="text-purple-600 text-xs font-bold underline">Clear</button>
+                  className="text-purple-600 text-[10px] sm:text-xs font-bold underline">Clear</button>
               </div>
             )}
 
-{/* HIGHLIGHTS */}
+{/* HIGHLIGHTS - Mobile optimized */}
 {searchedEvents.length > 0 && (
-  <section className="sg-fadein mb-10">
-    <h2 className="font-['Syne',sans-serif] text-xl font-bold text-gray-900 mb-4">
+  <section className="sg-fadein mb-6 sm:mb-10">
+    <h2 className="font-['Syne',sans-serif] text-base sm:text-xl font-bold text-gray-900 mb-2 sm:mb-4">
       {searchQuery ? 'Search Results' : 'Event Highlights'}
     </h2>
-    <div className="sg-noscroll flex gap-4 overflow-x-auto pb-2">
+    <div className="sg-noscroll flex gap-2 sm:gap-4 overflow-x-auto pb-2">
       {searchedEvents.map((ev, idx) => {
-        // Handle both full URL and relative path
         let imageUrl = null;
         if (ev.image_url) {
           if (ev.image_url.startsWith('http')) {
-            imageUrl = ev.image_url;  // Full URL like http://localhost:5000/uploads/...
+            imageUrl = ev.image_url;
           } else {
-            imageUrl = `${BASE_URL}${ev.image_url}`;  // Relative path like /uploads/...
+            imageUrl = `${BASE_URL}${ev.image_url}`;
           }
         }
         
         return (
           <div 
             key={ev._id} 
-            className="sg-hcard flex-none w-[clamp(190px,32vw,250px)] cursor-pointer group"
+            className="sg-hcard flex-none w-32.5 sm:w-42.5 md:w-50 lg:w-62.5 cursor-pointer group"
             onClick={() => { setSelectedEvent(ev._id); setActiveFilter('All'); setMediaItems([]); setSearchQuery(''); }}
           >
-            <div className="relative h-44 rounded-xl overflow-hidden shadow-md">
+            <div className="relative h-32.5 sm:h-37.5 md:h-44 rounded-lg sm:rounded-xl overflow-hidden shadow-md">
               
               {imageUrl ? (
                 <img 
@@ -278,26 +363,26 @@ useEffect(() => {
                 />
               ) : (
                 <div className={`w-full h-full bg-linear-to-br ${gradientPairs[idx % gradientPairs.length]} flex items-center justify-center`}>
-                  <span className="material-symbols-outlined text-7xl text-white/20">photo_library</span>
+                  <span className="material-symbols-outlined text-5xl sm:text-7xl text-white/20">photo_library</span>
                 </div>
               )}
               
               <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
               
-              <div className="absolute bottom-3 left-3 right-3 z-10">
-                <span className="inline-block bg-teal-400/90 text-teal-900 text-[0.58rem] font-extrabold uppercase tracking-wide rounded-full px-2 py-0.5 mb-1">
+              <div className="absolute bottom-2 left-2 right-2 sm:bottom-3 sm:left-3 sm:right-3 z-10">
+                <span className="inline-block bg-teal-400/90 text-teal-900 text-[0.5rem] sm:text-[0.58rem] font-extrabold uppercase tracking-wide rounded-full px-1.5 sm:px-2 py-0.5 mb-0.5 sm:mb-1">
                   Event
                 </span>
-                <p className="text-white font-['Syne',sans-serif] font-bold text-sm line-clamp-2">{ev.title}</p>
+                <p className="text-white font-['Syne',sans-serif] font-bold text-[10px] sm:text-sm line-clamp-2">{ev.title}</p>
                 {ev.start_date && (
-                  <p className="text-white/70 text-[0.68rem] mt-0.5">
+                  <p className="text-white/70 text-[0.5rem] sm:text-[0.68rem] mt-0.5">
                     {new Date(ev.start_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
                   </p>
                 )}
               </div>
               
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-purple-600/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <span className="bg-white/20 border border-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm">
+                <span className="bg-white/20 border border-white/30 text-white text-[8px] sm:text-xs font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-full backdrop-blur-sm">
                   View Gallery →
                 </span>
               </div>
@@ -311,17 +396,17 @@ useEffect(() => {
 )}
             {/* NO SEARCH RESULTS */}
             {searchQuery && searchedEvents.length === 0 && (
-              <div className="sg-fadein text-center py-16 bg-white rounded-2xl border-2 border-dashed border-purple-200/50 mb-8">
-                <span className="material-symbols-outlined text-5xl text-purple-300 block mb-3">search_off</span>
-                <p className="font-['Syne',sans-serif] text-base font-bold text-gray-800">No events found</p>
-                <p className="text-sm text-gray-500 mb-4">Try a different keyword.</p>
-                <button onClick={() => setSearchQuery('')} className="sg-pill bg-linear-to-r from-purple-600 to-pink-500 text-white px-5 py-1.5 rounded-full text-xs font-bold">Clear Search</button>
+              <div className="sg-fadein text-center py-12 sm:py-16 bg-white rounded-xl sm:rounded-2xl border-2 border-dashed border-purple-200/50 mb-6 sm:mb-8">
+                <span className="material-symbols-outlined text-4xl sm:text-5xl text-purple-300 block mb-2 sm:mb-3">search_off</span>
+                <p className="font-['Syne',sans-serif] text-sm sm:text-base font-bold text-gray-800">No events found</p>
+                <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Try a different keyword.</p>
+                <button onClick={() => setSearchQuery('')} className="sg-pill bg-linear-to-r from-purple-600 to-pink-500 text-white px-4 sm:px-5 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold">Clear Search</button>
               </div>
             )}
 
-            {/* FILTER PILLS */}
+            {/* FILTER PILLS - Mobile optimized */}
             {selectedEvent && (
-              <div className="sg-fadein sg-noscroll flex items-center gap-2 mb-6 overflow-x-auto pb-1">
+              <div className="sg-fadein sg-noscroll flex flex-wrap items-center gap-1 sm:gap-2 mb-3 sm:mb-6 overflow-x-auto pb-1">
                 {[
                   { key: 'All', icon: 'grid_view', label: 'All' },
                   { key: 'Images', icon: 'image', label: `Photos (${imageCount})` },
@@ -329,72 +414,74 @@ useEffect(() => {
                   { key: 'Saved', icon: 'bookmark', label: `Saved (${savedCount})` },
                 ].map(f => (
                   <button key={f.key} onClick={() => setActiveFilter(f.key)}
-                    className={`sg-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ${
+                    className={`sg-pill flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-semibold whitespace-nowrap ${
                       activeFilter === f.key ? 'bg-linear-to-r from-purple-600 to-pink-500 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-purple-100'
                     }`}>
-                    <span className="material-symbols-outlined text-sm">{f.icon}</span>
-                    {f.label}
+                    <span className="material-symbols-outlined text-[0.7rem] sm:text-sm">{f.icon}</span>
+                    <span className="hidden xs:inline">{f.label}</span>
+                    <span className="xs:hidden">{f.key}</span>
                   </button>
                 ))}
-                <div className="ml-auto flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5 text-xs font-semibold text-purple-600 whitespace-nowrap shrink-0">
-                  <span className="material-symbols-outlined text-sm">event</span>
-                  {getEventTitle()}
+                <div className="ml-auto flex items-center gap-1 bg-gray-100 rounded-full px-2 sm:px-3 py-1 sm:py-1.5 text-[9px] sm:text-xs font-semibold text-purple-600 whitespace-nowrap shrink-0">
+                  <span className="material-symbols-outlined text-[0.7rem] sm:text-sm">event</span>
+                  <span className="hidden xs:inline">{getEventTitle()}</span>
+                  <span className="xs:hidden">{getEventTitle().substring(0, 8)}...</span>
                 </div>
               </div>
             )}
 
-            {/* GALLERY AREA */}
+            {/* GALLERY AREA - Mobile optimized with smaller images */}
             {!selectedEvent && !searchQuery ? (
-              <div className="sg-fadein text-center py-20 bg-white rounded-2xl border-2 border-dashed border-purple-200/50">
-                <div className="w-16 h-16 rounded-full bg-linear-to-br from-purple-100 to-pink-100 flex items-center justify-center mx-auto mb-4">
-                  <span className="material-symbols-outlined text-3xl text-purple-500">photo_library</span>
+              <div className="sg-fadein text-center py-12 sm:py-20 bg-white rounded-xl sm:rounded-2xl border-2 border-dashed border-purple-200/50">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-linear-to-br from-purple-100 to-pink-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <span className="material-symbols-outlined text-2xl sm:text-3xl text-purple-500">photo_library</span>
                 </div>
-                <h3 className="font-['Syne',sans-serif] text-lg font-bold text-gray-800">Choose an event to explore</h3>
-                <p className="text-sm text-gray-500">Tap a highlight card or an event button above.</p>
+                <h3 className="font-['Syne',sans-serif] text-base sm:text-lg font-bold text-gray-800">Choose an event to explore</h3>
+                <p className="text-xs sm:text-sm text-gray-500">Tap a highlight card or an event button above.</p>
               </div>
             ) : loading ? (
-              <div className="text-center py-20">
-                <div className="sg-spin w-10 h-10 border-3 border-purple-200 border-t-purple-600 rounded-full mx-auto mb-3" />
-                <p className="text-sm text-gray-500 font-semibold">Loading gallery…</p>
+              <div className="text-center py-16 sm:py-20">
+                <div className="sg-spin w-8 h-8 sm:w-10 sm:h-10 border-3 border-purple-200 border-t-purple-600 rounded-full mx-auto mb-2 sm:mb-3" />
+                <p className="text-xs sm:text-sm text-gray-500 font-semibold">Loading gallery…</p>
               </div>
             ) : selectedEvent && filteredMedia.length === 0 ? (
-              <div className="sg-fadein text-center py-20 bg-white rounded-2xl border-2 border-dashed border-purple-200/50">
-                <span className="material-symbols-outlined text-5xl text-purple-300 block mb-3">image_not_supported</span>
-                <p className="font-['Syne',sans-serif] text-base font-bold text-gray-800">No media yet</p>
-                <p className="text-sm text-gray-500">The organizer hasn't uploaded anything for this event.</p>
+              <div className="sg-fadein text-center py-16 sm:py-20 bg-white rounded-xl sm:rounded-2xl border-2 border-dashed border-purple-200/50">
+                <span className="material-symbols-outlined text-4xl sm:text-5xl text-purple-300 block mb-2 sm:mb-3">image_not_supported</span>
+                <p className="font-['Syne',sans-serif] text-sm sm:text-base font-bold text-gray-800">No media yet</p>
+                <p className="text-xs sm:text-sm text-gray-500">The organizer hasn't uploaded anything for this event.</p>
               </div>
             ) : selectedEvent && filteredMedia.length > 0 ? (
-              <div className="sg-masonry columns-1 sm:columns-2 lg:columns-3 gap-4">
+              <div className="sg-masonry">
                 {filteredMedia.map((item, idx) => (
-                  <div key={item._id} className="sg-card sg-fadein relative mb-4 rounded-xl overflow-hidden bg-white cursor-pointer shadow-sm" style={{ breakInside: 'avoid', ...delay(idx) }} onClick={() => openLightbox(item)}>
+                  <div key={item._id} className="sg-card sg-fadein relative mb-1 sm:mb-4 rounded-lg sm:rounded-xl overflow-hidden bg-white cursor-pointer shadow-sm" style={{ breakInside: 'avoid', ...delay(idx) }} onClick={() => openLightbox(item)}>
                     {item.media_type === 'Video' ? (
                       <div className="relative">
                         <video src={`${BASE_URL}${item.media_url}`} className="w-full block object-cover" muted />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                          <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
-                            <span className="material-symbols-outlined text-purple-600 text-xl">play_arrow</span>
+                          <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
+                            <span className="material-symbols-outlined text-purple-600 text-base sm:text-xl">play_arrow</span>
                           </div>
                         </div>
                       </div>
                     ) : (
                       <img src={`${BASE_URL}${item.media_url}`} alt="gallery" className="w-full block object-cover transition-transform duration-500 hover:scale-105" />
                     )}
-                    <div className="sg-actions absolute top-2 right-2 flex flex-col gap-1 opacity-0 transition-opacity duration-200">
-                      <button onClick={e => toggleSave(e, item._id)} className="sg-icon-btn w-7 h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center">
-                        <span className="material-symbols-outlined text-sm text-purple-600">{savedItems.includes(item._id) ? 'bookmark' : 'bookmark_border'}</span>
+                    <div className="sg-actions absolute top-1 right-1 sm:top-2 sm:right-2 flex flex-col gap-0.5 sm:gap-1 opacity-0 transition-opacity duration-200">
+                      <button onClick={e => toggleSave(e, item._id)} className="sg-icon-btn w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center hover:scale-110 transition">
+                        <span className="material-symbols-outlined text-[0.6rem] sm:text-sm text-purple-600">{savedItems.includes(item._id) ? 'bookmark' : 'bookmark_border'}</span>
                       </button>
-                      <button onClick={e => downloadItem(e, item)} className="sg-icon-btn w-7 h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center">
-                        <span className="material-symbols-outlined text-sm text-purple-600">download</span>
+                      <button onClick={e => downloadItem(e, item)} className="sg-icon-btn w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center hover:scale-110 transition">
+                        <span className="material-symbols-outlined text-[0.6rem] sm:text-sm text-purple-600">download</span>
                       </button>
-                      <button onClick={e => openShare(e, item)} className="sg-icon-btn w-7 h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center">
-                        <span className="material-symbols-outlined text-sm text-purple-600">share</span>
+                      <button onClick={e => openShare(e, item)} className="sg-icon-btn w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center hover:scale-110 transition">
+                        <span className="material-symbols-outlined text-[0.6rem] sm:text-sm text-purple-600">share</span>
                       </button>
                     </div>
-                    <div className="sg-info-strip absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/70 to-transparent px-3 pb-2 pt-8 opacity-0 transition-opacity duration-200">
-                      <span className={`inline-block text-white text-[0.58rem] font-extrabold uppercase rounded-full px-2 py-0.5 ${item.media_type === 'Video' ? 'bg-teal-500/90' : 'bg-purple-500/90'}`}>
+                    <div className="sg-info-strip absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/70 to-transparent px-1.5 sm:px-3 pb-1 sm:pb-2 pt-4 sm:pt-8 opacity-0 transition-opacity duration-200">
+                      <span className={`inline-block text-white text-[0.4rem] sm:text-[0.58rem] font-extrabold uppercase rounded-full px-1 sm:px-2 py-0.5 ${item.media_type === 'Video' ? 'bg-teal-500/90' : 'bg-purple-500/90'}`}>
                         {item.media_type === 'Video' ? 'Video' : 'Photo'}
                       </span>
-                      <p className="text-white/75 text-[0.68rem] font-medium mt-0.5">
+                      <p className="text-white/75 text-[0.4rem] sm:text-[0.68rem] font-medium mt-0.5">
                         {new Date(item.uploaded_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
