@@ -20,15 +20,15 @@ const OrganizerSidebar = () => {
   const notifRef = useRef(null);
 
   const navItems = [
-    { label: "Dashboard",       path: "/organizer-dashboard",        icon: "dashboard" },
-    { label: "Create Event",    path: "/organizer/create-event",     icon: "add_circle" },
-    { label: "My Events",       path: "/organizer/my-events",        icon: "calendar_month" },
-    { label: "Tasks",           path: "/organizer/tasks",            icon: "task_alt" },
-    { label: "Gallery",         path: "/organizer/gallery",          icon: "photo_library" },
-    { label: "Feedback",        path: "/organizer/feedback",         icon: "rate_review" },
-    { label: "Certificates",    path: "/organizer/certificates",     icon: "workspace_premium" },
-    { label: "Scan Attendance", path: "/organizer/scan-attendance",  icon: "qr_code_scanner" },
-    { label: "Profile",         path: "/organizer/profile",          icon: "person" }
+    { label: "Dashboard", path: "/organizer-dashboard", icon: "dashboard" },
+    { label: "Create Event", path: "/organizer/create-event", icon: "add_circle" },
+    { label: "My Events", path: "/organizer/my-events", icon: "calendar_month" },
+    { label: "Tasks", path: "/organizer/tasks", icon: "task_alt" },
+    { label: "Gallery", path: "/organizer/gallery", icon: "photo_library" },
+    { label: "Feedback", path: "/organizer/feedback", icon: "rate_review" },
+    { label: "Certificates", path: "/organizer/certificates", icon: "workspace_premium" },
+    { label: "Scan Attendance", path: "/organizer/scan-attendance", icon: "qr_code_scanner" },
+    { label: "Profile", path: "/organizer/profile", icon: "person" }
   ];
 
   const handleLogout = () => {
@@ -36,16 +36,44 @@ const OrganizerSidebar = () => {
     navigate("/login-organizer");
   };
 
-  // ── Fetch notifications from API ──
+  // ── Notification Functions ──
+  const getIconByType = (type) => {
+    switch (type) {
+      case 'event': return 'event';
+      case 'certificate': return 'workspace_premium';
+      case 'attendance': return 'qr_code_scanner';
+      case 'task': return 'task_alt';
+      default: return 'notifications';
+    }
+  };
+
+  const getColorByType = (type) => {
+    switch (type) {
+      case 'event': return '#8b4fa2';
+      case 'certificate': return '#FFE66D';
+      case 'attendance': return '#4ECDC4';
+      case 'task': return '#FF6B6B';
+      default: return '#8b4fa2';
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch (type) {
+      case 'event': return '#f5eefa';
+      case 'certificate': return '#fff9e6';
+      case 'attendance': return '#e6faf8';
+      case 'task': return '#ffe6e6';
+      default: return '#f5eefa';
+    }
+  };
+
   const fetchNotifications = async () => {
     if (!token) return;
     setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      
-      // Fetch real notifications from database
       const response = await axios.get(`${API_URL}/notifications`, { headers });
-      
+
       if (response.data.success) {
         const notifs = response.data.notifications.map(notif => ({
           id: notif._id,
@@ -59,7 +87,7 @@ const OrganizerSidebar = () => {
           color: getColorByType(notif.type),
           bg: getBgByType(notif.type)
         }));
-        
+
         setNotifications(notifs);
         setUnreadCount(response.data.unreadCount);
       }
@@ -70,45 +98,13 @@ const OrganizerSidebar = () => {
     }
   };
 
-  // Get icon based on notification type
-  const getIconByType = (type) => {
-    switch(type) {
-      case 'event': return 'event';
-      case 'certificate': return 'workspace_premium';
-      case 'attendance': return 'qr_code_scanner';
-      case 'task': return 'task_alt';
-      default: return 'notifications';
-    }
-  };
-
-  const getColorByType = (type) => {
-    switch(type) {
-      case 'event': return '#8b4fa2';
-      case 'certificate': return '#FFE66D';
-      case 'attendance': return '#4ECDC4';
-      case 'task': return '#FF6B6B';
-      default: return '#8b4fa2';
-    }
-  };
-
-  const getBgByType = (type) => {
-    switch(type) {
-      case 'event': return '#f5eefa';
-      case 'certificate': return '#fff9e6';
-      case 'attendance': return '#e6faf8';
-      case 'task': return '#ffe6e6';
-      default: return '#f5eefa';
-    }
-  };
-
-  // Mark notification as read
   const markAsRead = async (notificationId) => {
     if (!token) return;
     try {
       await axios.put(`${API_URL}/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       setNotifications(prev =>
         prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
       );
@@ -118,29 +114,33 @@ const OrganizerSidebar = () => {
     }
   };
 
-  // Mark all as read
-  const markAllAsRead = async () => {
-    if (!token) return;
-    try {
-      await axios.put(`${API_URL}/notifications/read-all`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-    } catch (err) {
-      console.error("Error marking all as read:", err);
-    }
-  };
+  // 🔄 REPLACE existing markAllAsRead with this:
+const markAllAsRead = async () => {
+  if (!token) return;
+  try {
+    await axios.put(`${API_URL}/notifications/read-all`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // ✅ Sab notifications ko read mark karein
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+    
+    // ✅ Force re-fetch to sync with server
+    await fetchNotifications();
+    
+  } catch (err) {
+    console.error("Error marking all as read:", err);
+  }
+};
 
-  // Delete notification
   const deleteNotification = async (notificationId) => {
     if (!token) return;
     try {
       await axios.delete(`${API_URL}/notifications/${notificationId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       const deleted = notifications.find(n => n._id === notificationId);
       setNotifications(prev => prev.filter(n => n._id !== notificationId));
       if (!deleted?.isRead) {
@@ -151,11 +151,11 @@ const OrganizerSidebar = () => {
     }
   };
 
-  // Listen for real-time notifications
+  // ── Socket Listeners (WITH SAFE CHECK) ──
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('new-notification', (notification) => {
+    const handleNewNotification = (notification) => {
       const newNotif = {
         id: notification._id,
         _id: notification._id,
@@ -168,20 +168,26 @@ const OrganizerSidebar = () => {
         color: getColorByType(notification.type),
         bg: getBgByType(notification.type)
       };
-      
+
       setNotifications(prev => [newNotif, ...prev]);
       setUnreadCount(prev => prev + 1);
-      
-      // Show toast (optional)
+
+      // Toast notification
       showToast(notification);
-    });
+    };
+
+    if (socket && typeof socket.on === 'function') {
+      socket.on('new-notification', handleNewNotification);
+    }
 
     return () => {
-      socket.off('new-notification');
+      if (socket && typeof socket.off === 'function') {
+        socket.off('new-notification', handleNewNotification);
+      }
     };
   }, [socket]);
 
-  // Toast notification
+  // ── Toast Notification ──
   const showToast = (notification) => {
     const toast = document.createElement('div');
     toast.className = 'fixed bottom-20 right-4 bg-white rounded-lg shadow-2xl p-3 max-w-sm z-50 animate-slide-up';
@@ -203,14 +209,15 @@ const OrganizerSidebar = () => {
     }, 4000);
   };
 
-  // Initial fetch
+  // ── Fetch on mount & interval ──
   useEffect(() => {
+    if (!token) return;
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [token]);
 
-  // Close notif dropdown on outside click
+  // ── Click outside to close notification dropdown ──
   useEffect(() => {
     const handleClick = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
@@ -225,7 +232,7 @@ const OrganizerSidebar = () => {
     <>
       {/* Logo */}
       <div className="px-8 py-6 shrink-0">
-        <Link to="/organizer-dashboard" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
+        <Link to="/" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
           <span className="text-5xl font-bold relative" style={{ fontFamily: "Great Vibes, cursive" }}>
             <span className="text-[#9B59B6]">Event</span>
             <span className="text-yellow-500">ora</span>
@@ -295,7 +302,7 @@ const OrganizerSidebar = () => {
           <span className="text-yellow-500">ora</span>
         </span>
 
-        {/* Notification Bell */}
+        {/* 🔔 MOBILE NOTIFICATION BELL */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => { setNotifOpen(!notifOpen); }}
@@ -328,7 +335,7 @@ const OrganizerSidebar = () => {
                   </span>
                 </div>
               </div>
-              
+
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
@@ -341,8 +348,8 @@ const OrganizerSidebar = () => {
               ) : (
                 <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
                   {notifications.map((n) => (
-                    <div 
-                      key={n.id} 
+                    <div
+                      key={n.id}
                       className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? 'bg-purple-50/30' : ''}`}
                       onClick={() => !n.isRead && markAsRead(n._id)}
                     >
@@ -390,43 +397,43 @@ const OrganizerSidebar = () => {
         </div>
       )}
 
-     {/* ── MOBILE BOTTOM NAV ── */}
-<nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-40 shadow-lg">
-  {[
-    { label: "Home",   path: "/organizer-dashboard",       icon: "dashboard" },
-    { label: "Events", path: "/organizer/my-events",       icon: "calendar_month" },
-    { label: "New",    path: "/organizer/create-event",    icon: "add_circle" },
-    { label: "Scan",   path: "/organizer/scan-attendance", icon: "qr_code_scanner" },
-    { 
-      label: "More", 
-      path: "#", 
-      icon: "grid_view",
-      onClick: () => setSidebarOpen(true)  // ✅ Sidebar open karega
-    },
-  ].map((item) => {
-    const isActive = location.pathname === item.path;
-    return (
-      <button
-        key={item.label}
-        onClick={() => {
-          if (item.onClick) {
-            item.onClick();  // ✅ More button ke liye
-          } else {
-            navigate(item.path);
-          }
-        }}
-        className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all
-          ${isActive ? "text-[#8b4fa2]" : "text-gray-400"}`}
-      >
-        <span className="material-symbols-outlined text-[22px]"
-          style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
-          {item.icon}
-        </span>
-        <span className="text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
-      </button>
-    );
-  })}
-</nav>
+      {/* ── MOBILE BOTTOM NAV ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-40 shadow-lg">
+        {[
+          { label: "Home", path: "/organizer-dashboard", icon: "dashboard" },
+          { label: "Events", path: "/organizer/my-events", icon: "calendar_month" },
+          { label: "New", path: "/organizer/create-event", icon: "add_circle" },
+          { label: "Scan", path: "/organizer/scan-attendance", icon: "qr_code_scanner" },
+          {
+            label: "More",
+            path: "#",
+            icon: "grid_view",
+            onClick: () => setSidebarOpen(true)
+          },
+        ].map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <button
+              key={item.label}
+              onClick={() => {
+                if (item.onClick) {
+                  item.onClick();
+                } else {
+                  navigate(item.path);
+                }
+              }}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all
+                ${isActive ? "text-[#8b4fa2]" : "text-gray-400"}`}
+            >
+              <span className="material-symbols-outlined text-[22px]"
+                style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                {item.icon}
+              </span>
+              <span className="text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
 
       <style>{`
         @keyframes slideIn {

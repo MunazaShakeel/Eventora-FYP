@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import OrganizerSidebar from "../../components/OrganizerSidebar";
 import { useAuth } from "../../context/AuthContext";
+import { useSocket } from "../../context/SocketContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -85,9 +86,131 @@ const QuickActionButton = ({ action, onClick, index }) => (
   </button>
 );
 
+// ── NOTIFICATION BELL COMPONENT ── (REPLACE WITH THIS)
+const NotificationBell = ({ 
+  notifications, 
+  unreadCount, 
+  loadingNotifs, 
+  onToggle, 
+  isOpen, 
+  onMarkRead, 
+  onMarkAllRead, 
+  onDelete, 
+  dropdownRef 
+}) => {
+  const formatTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+    return date.toLocaleDateString('en-PK', { day: 'numeric', month: 'short' });
+  };
+
+  const getIconByType = (type) => {
+    switch (type) {
+      case 'event': return '📅';
+      case 'certificate': return '🏆';
+      case 'task': return '📋';
+      case 'attendance': return '✅';
+      default: return '📢';
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch (type) {
+      case 'event': return '#f5eefa';
+      case 'certificate': return '#fffce8';
+      case 'task': return '#e6faf8';
+      case 'attendance': return '#d1fae5';
+      default: return '#f3f4f6';
+    }
+  };
+
+  return (
+    <div className="relative hidden md:block" ref={dropdownRef}>
+      <button
+        onClick={onToggle}
+        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition relative"
+      >
+        <span className="material-symbols-outlined text-[22px] text-gray-600">
+          {unreadCount > 0 ? 'notifications_active' : 'notifications'}
+        </span>
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
+            <p className="text-sm font-black text-gray-800">Notifications</p>
+            <div className="flex items-center gap-2">
+              {/* ✅ MARK ALL READ - HAMESHA DIKHEGA */}
+              <button 
+                onClick={onMarkAllRead}
+                disabled={unreadCount === 0}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition
+                  ${unreadCount > 0 
+                    ? 'text-[#8b4fa2] bg-purple-100 hover:bg-purple-200 cursor-pointer' 
+                    : 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                  }`}
+              >
+                Mark all read
+              </button>
+              <span className="text-[10px] font-bold text-[#8b4fa2] bg-purple-50 px-2 py-0.5 rounded-full">
+                {unreadCount} new
+              </span>
+            </div>
+          </div>
+
+          {loadingNotifs ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+              <span className="material-symbols-outlined text-[36px] mb-2">notifications_none</span>
+              <p className="text-sm font-semibold">No notifications</p>
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+              {notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? 'bg-purple-50/30' : ''}`}
+                  onClick={() => !n.isRead && onMarkRead(n._id)}
+                >
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: getBgByType(n.type) }}>
+                    <span className="text-lg">{getIconByType(n.type)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 leading-snug">{n.title}</p>
+                    <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">{n.message}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{formatTime(n.time)}</p>
+                  </div>
+                  {!n.isRead && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#8b4fa2] shrink-0 mt-1" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const OrganizerDashboard = () => {
   const navigate = useNavigate();
   const { user, token } = useAuth();
+  const socket = useSocket();
   const notifRef = useRef(null);
 
   const [stats, setStats] = useState({
@@ -110,7 +233,148 @@ const OrganizerDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [chartType, setChartType] = useState("weekly");
+
+  // ── Notification Functions ──
+  const getIconByType = (type) => {
+    switch (type) {
+      case 'event': return 'event';
+      case 'certificate': return 'workspace_premium';
+      case 'attendance': return 'qr_code_scanner';
+      case 'task': return 'task_alt';
+      default: return 'notifications';
+    }
+  };
+
+  const getColorByType = (type) => {
+    switch (type) {
+      case 'event': return '#8b4fa2';
+      case 'certificate': return '#FFE66D';
+      case 'attendance': return '#4ECDC4';
+      case 'task': return '#FF6B6B';
+      default: return '#8b4fa2';
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch (type) {
+      case 'event': return '#f5eefa';
+      case 'certificate': return '#fff9e6';
+      case 'attendance': return '#e6faf8';
+      case 'task': return '#ffe6e6';
+      default: return '#f5eefa';
+    }
+  };
+
+  const fetchNotifications = async () => {
+    if (!token) return;
+    setLoadingNotifs(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/api/notifications`, { headers });
+      if (response.data.success) {
+        const notifs = response.data.notifications.map(notif => ({
+          id: notif._id,
+          _id: notif._id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          isRead: notif.isRead,
+          time: notif.createdAt ? new Date(notif.createdAt).toISOString() : new Date().toISOString(),
+          icon: getIconByType(notif.type),
+          color: getColorByType(notif.type),
+          bg: getBgByType(notif.type)
+        }));
+        setNotifications(notifs);
+        setUnreadCount(response.data.unreadCount || 0);
+      }
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/api/notifications/${notificationId}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setNotifications(prev =>
+        prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Error marking as read:", err);
+    }
+  };
+
+  // 🔄 REPLACE existing markAllAsRead with this:
+const markAllAsRead = async () => {
+  if (!token) return;
+  try {
+    await axios.put(`${API_URL}/notifications/read-all`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // ✅ Sab notifications ko read mark karein
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+    
+    // ✅ Force re-fetch to sync with server
+    await fetchNotifications();
+    
+  } catch (err) {
+    console.error("Error marking all as read:", err);
+  }
+};
+
+  const deleteNotification = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.delete(`${API_URL}/api/notifications/${notificationId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setNotifications(prev => prev.filter(n => n._id !== notificationId));
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+    }
+  };
+
+  // ── Socket Listeners ──
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewNotification = (notification) => {
+      const newNotif = {
+        id: notification._id,
+        _id: notification._id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        isRead: false,
+        time: new Date().toISOString(),
+        icon: getIconByType(notification.type),
+        color: getColorByType(notification.type),
+        bg: getBgByType(notification.type)
+      };
+
+      setNotifications(prev => [newNotif, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    };
+
+    if (socket && typeof socket.on === 'function') {
+      socket.on('new-notification', handleNewNotification);
+    }
+
+    return () => {
+      if (socket && typeof socket.off === 'function') {
+        socket.off('new-notification', handleNewNotification);
+      }
+    };
+  }, [socket]);
 
   // ── Greeting + Clock ──
   useEffect(() => {
@@ -129,9 +393,8 @@ const OrganizerDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ── Main Data Fetch (Safe API Calls) ──
+  // ── Main Data Fetch ──
   useEffect(() => {
-   
     if (!token || !user) return;
 
     const fetchAll = async () => {
@@ -141,7 +404,6 @@ const OrganizerDashboard = () => {
         const headers = { Authorization: `Bearer ${token}` };
         const organizerId = user.id;
 
-        // ✅ Safe API calls with fallback values
         const safeFetch = async (url, fallback = null) => {
           try {
             const res = await axios.get(url, { headers });
@@ -152,7 +414,6 @@ const OrganizerDashboard = () => {
           }
         };
 
-        // Fetch all data in parallel
         const [
           statsData,
           upcomingData,
@@ -170,10 +431,9 @@ const OrganizerDashboard = () => {
           safeFetch(`${API_URL}/api/organizer-dashboard/upcoming-events`, { upcomingEvents: [] }),
           safeFetch(`${API_URL}/api/organizer-dashboard/recent-registrations`, { recentRegistrations: [] }),
           safeFetch(`${API_URL}/api/organizer-dashboard/registration-trends`, { trends: [] }),
-         safeFetch(`${API_URL}/api/organizers/me`, { organizer: { name: "Organizer" } }),
+          safeFetch(`${API_URL}/api/organizers/me`, { organizer: { name: "Organizer" } }),
         ]);
 
-        // Set states with safe fallbacks
         setStats(statsData || { events: { totalEvents: 0, approvedEvents: 0, rejectedEvents: 0 }, registrations: { totalRegistrations: 0, presentCount: 0, absentCount: 0 }, tasks: { totalTasks: 0, completedTasks: 0, pendingTasks: 0 }, totalCertificates: 0, topEvents: [] });
         setUpcomingEvents(upcomingData?.upcomingEvents || []);
         setRecentRegistrations(recentData?.recentRegistrations || []);
@@ -196,47 +456,8 @@ const OrganizerDashboard = () => {
   // ── Notifications Fetch ──
   useEffect(() => {
     if (!token) return;
-    const fetchNotifs = async () => {
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        const notifs = [];
-
-        // Try fetching upcoming events
-        try {
-          const upcomingRes = await axios.get(`${API_URL}/api/organizer-dashboard/upcoming-events`, { headers });
-          (upcomingRes.data?.upcomingEvents || []).slice(0, 3).forEach((ev) => {
-            notifs.push({
-              id: `ev-${ev._id}`,
-              icon: "event",
-              color: "#8b4fa2",
-              bg: "#f5eefa",
-              message: `"${ev.title}" is coming up`,
-              time: ev.start_date ? new Date(ev.start_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "",
-            });
-          });
-        } catch (e) { console.warn("Notif events failed:", e.message); }
-
-        // Try fetching recent registrations
-        try {
-          const regsRes = await axios.get(`${API_URL}/api/organizer-dashboard/recent-registrations`, { headers });
-          (regsRes.data?.recentRegistrations || []).slice(0, 3).forEach((reg) => {
-            notifs.push({
-              id: `reg-${reg._id}`,
-              icon: "person_add",
-              color: "#4ECDC4",
-              bg: "#edfafa",
-              message: `${reg?.student_id?.name || "A student"} registered for "${reg?.event_id?.title || "your event"}"`,
-              time: reg.registration_date ? new Date(reg.registration_date).toLocaleDateString("en-PK", { day: "numeric", month: "short" }) : "",
-            });
-          });
-        } catch (e) { console.warn("Notif registrations failed:", e.message); }
-
-        setNotifications(notifs);
-        setUnreadCount(notifs.length);
-      } catch (err) { console.error(err); }
-    };
-    fetchNotifs();
-    const interval = setInterval(fetchNotifs, 30000);
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -333,41 +554,6 @@ const OrganizerDashboard = () => {
     "linear-gradient(135deg, #8b4fa2, #6d28d9)",
   ];
 
-  const NotifDropdown = () => (
-    <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <p className="text-sm font-black text-gray-800">Notifications</p>
-        <span className="text-[10px] font-bold text-[#8b4fa2] bg-purple-50 px-2 py-0.5 rounded-full">
-          {notifications.length} new
-        </span>
-      </div>
-      {notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-          <span className="material-symbols-outlined text-[36px] mb-2">notifications_none</span>
-          <p className="text-sm font-semibold">No notifications</p>
-        </div>
-      ) : (
-        <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-          {notifications.map((n) => (
-            <div key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                style={{ backgroundColor: n.bg }}>
-                <span className="material-symbols-outlined text-[16px]"
-                  style={{ color: n.color, fontVariationSettings: "'FILL' 1" }}>
-                  {n.icon}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-gray-700 leading-snug">{n.message}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <>
       <style>{`
@@ -422,24 +608,24 @@ const OrganizerDashboard = () => {
                 <p className="text-sm text-gray-400 mt-2">Track, manage, and grow your events effortlessly</p>
               </div>
 
-              {/* Right Side — Bell + Clock */}
               <div className="flex items-center gap-4">
-
-                {/* Notification Bell */}
-                <div className="relative hidden md:block" ref={notifRef}>
-                  <button
-                    onClick={() => { setNotifOpen(!notifOpen); setUnreadCount(0); }}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition relative"
-                  >
-                    <span className="material-symbols-outlined text-[22px] text-gray-600">notifications</span>
-                    {unreadCount > 0 && (
-                      <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                      </span>
-                    )}
-                  </button>
-                  {notifOpen && <NotifDropdown />}
-                </div>
+                {/* 🔔 NOTIFICATION BELL */}
+                <NotificationBell
+                  notifications={notifications}
+                  unreadCount={unreadCount}
+                  loadingNotifs={loadingNotifs}
+                  isOpen={notifOpen}
+                  onToggle={() => {
+                    setNotifOpen(!notifOpen);
+                    if (!notifOpen && unreadCount > 0) {
+                      markAllAsRead();
+                    }
+                  }}
+                  onMarkRead={markAsRead}
+                  onMarkAllRead={markAllAsRead}
+                  onDelete={deleteNotification}
+                  dropdownRef={notifRef}
+                />
 
                 {/* Live Clock */}
                 <div className="flex flex-col items-end gap-2">
@@ -455,7 +641,6 @@ const OrganizerDashboard = () => {
                   </div>
                   <p className="text-xs text-gray-400 font-medium">{currentDate}</p>
                 </div>
-
               </div>
             </div>
 

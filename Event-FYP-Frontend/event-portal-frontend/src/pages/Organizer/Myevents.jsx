@@ -19,7 +19,8 @@ import {
   Grid3x3,
   List,
   Search,
-  Eye
+  Eye,
+  X
 } from "lucide-react";
 
 // ✅ API URL from env
@@ -35,6 +36,10 @@ const MyEvents = () => {
   const [activeFilter, setActiveFilter] = useState("all"); // all, approved, pending
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState("grid"); // grid, list
+  
+  // ✅ State for custom delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState(null);
 
   const { token } = useAuth();
 
@@ -78,19 +83,36 @@ const MyEvents = () => {
     setFilteredEvents(filtered);
   }, [events, activeFilter, searchTerm]);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this event?")) return;
-    setDeleteId(id);
+  // ✅ Updated delete handler - shows custom modal instead of window.confirm
+  const handleDeleteClick = (event) => {
+    setEventToDelete(event);
+    setShowDeleteModal(true);
+  };
+
+  // ✅ Confirm delete handler
+  const handleConfirmDelete = async () => {
+    if (!eventToDelete) return;
+    
+    setDeleteId(eventToDelete._id);
+    setShowDeleteModal(false);
+    
     try {
-      await axios.delete(`${API_URL}/events/${id}`, {
+      await axios.delete(`${API_URL}/events/${eventToDelete._id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setEvents(events.filter((e) => e._id !== id));
+      setEvents(events.filter((e) => e._id !== eventToDelete._id));
     } catch (err) {
       alert(err?.response?.data?.message || "Delete failed.");
     } finally {
       setDeleteId(null);
+      setEventToDelete(null);
     }
+  };
+
+  // ✅ Cancel delete handler
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setEventToDelete(null);
   };
 
   const getStatusColor = (status) => {
@@ -383,7 +405,7 @@ const MyEvents = () => {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(event._id)}
+                        onClick={() => handleDeleteClick(event)} // ✅ Updated to use custom modal
                         disabled={deleteId === event._id}
                         className="flex-1 py-2.5 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white font-semibold rounded-xl transition-all duration-300 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                       >
@@ -463,7 +485,7 @@ const MyEvents = () => {
                           <span className="hidden sm:inline">Edit</span>
                         </button>
                         <button
-                          onClick={() => handleDelete(event._id)}
+                          onClick={() => handleDeleteClick(event)} // ✅ Updated to use custom modal
                           disabled={deleteId === event._id}
                           className="px-4 py-2 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white font-semibold rounded-xl transition-all duration-300 text-sm flex items-center gap-1 disabled:opacity-50"
                         >
@@ -483,6 +505,79 @@ const MyEvents = () => {
           )}
         </div>
       </main>
+
+      {/* ✅ Custom Delete Confirmation Modal */}
+      {showDeleteModal && eventToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={handleCancelDelete}
+          ></div>
+          
+          {/* Modal */}
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+            <button
+              onClick={handleCancelDelete}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="text-center">
+              {/* Icon */}
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={32} className="text-red-600" />
+              </div>
+              
+              {/* Title */}
+              <h3 className="text-xl font-bold text-gray-800 mb-2">
+                Delete Event?
+              </h3>
+              
+              {/* Description */}
+              <p className="text-gray-500 mb-6">
+                Are you sure you want to delete <strong className="text-gray-700">"{eventToDelete.title}"</strong>? 
+                <br />
+                <span className="text-sm text-red-500">This action cannot be undone.</span>
+              </p>
+              
+              {/* Event Details Preview */}
+              <div className="bg-gray-50 rounded-lg p-3 mb-6 text-left text-sm">
+                <p className="text-gray-600">
+                  <span className="font-medium">Date:</span> {new Date(eventToDelete.start_date).toLocaleDateString()}
+                </p>
+                <p className="text-gray-600">
+                  <span className="font-medium">Venue:</span> {eventToDelete.venue || "Not specified"}
+                </p>
+                <p className="text-gray-600">
+                  <span className="font-medium">Status:</span> 
+                  <span className={`ml-1 ${eventToDelete.approved ? "text-green-600" : "text-yellow-600"}`}>
+                    {eventToDelete.approved ? "Approved" : "Pending"}
+                  </span>
+                </p>
+              </div>
+              
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCancelDelete}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all duration-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={16} />
+                  Delete Event
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

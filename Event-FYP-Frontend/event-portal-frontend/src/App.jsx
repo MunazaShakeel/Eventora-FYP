@@ -4,6 +4,10 @@ import { Routes, Route } from "react-router-dom";
 import Register from "./pages/Student/authStudent/Register";
 import Login from "./pages/Student/authStudent/Login";
 import Home from "./pages/Home";
+import FAQ from "./pages/FAQ";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+
 import OrganizerLogin from "./pages/Organizer/authOrg/OrganizerLogin";
 import OrganizerRegister from "./pages/Organizer/authOrg/OrganizerRegister";
 import AdminLogin from "./pages/Admin/AdminLogin";
@@ -41,12 +45,21 @@ import AttendanceReports from "./pages/Admin/AttendanceReports";
 
 
 
+
 function App() {
   return (
     <Routes>
       {/* Default page */}
       <Route path="/" element={<Home />} />
       <Route path="/about" element={<AboutUs />} />
+  
+      <Route path="/faq" element={<FAQ />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
+
+
+
+
 
 
       {/* Student Auth */}

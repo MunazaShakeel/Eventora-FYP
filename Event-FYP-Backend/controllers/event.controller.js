@@ -1,8 +1,19 @@
+
+
+
+
+
+
+
 const Event = require('../models/Event');
 const Registration = require("../models/Registration");
 const Feedback = require("../models/Feedback");
 const Certificate = require("../models/Certificate");
 const Task = require("../models/Task");
+const Admin = require("../models/Admin");
+
+// 🆕 Notification import
+const { sendNotification } = require('../utils/notification');
 
 const buildImageUrl = (req, filename) => {
     if (!filename) return undefined;
@@ -28,6 +39,22 @@ exports.createEvent = async (req, res) => {
             approved: false,
             status: 'Upcoming'
         });
+
+        // 🆕 Notify all Admins about the new event awaiting approval
+        try {
+            const admins = await Admin.find().select('_id');
+            for (const admin of admins) {
+                await sendNotification(
+                    admin._id,
+                    'New Event Pending Approval',
+                    `A new event "${event.title}" has been submitted and is waiting for your approval.`,
+                    'event',
+                    event._id
+                );
+            }
+        } catch (notifyErr) {
+            console.error('Notification error (createEvent):', notifyErr.message);
+        }
 
         res.status(201).json({ message: 'Event created successfully', event });
     } catch (error) {
@@ -81,6 +108,21 @@ exports.approveEvent = async (req, res) => {
         );
 
         if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        // 🆕 Notify the Organizer about approval/rejection
+        try {
+            await sendNotification(
+                event.organizer_id,
+                approved ? 'Event Approved' : 'Event Rejected',
+                approved
+                    ? `Your event "${event.title}" has been approved and is now visible to everyone.`
+                    : `Your event "${event.title}" has been rejected by the admin.`,
+                'event',
+                event._id
+            );
+        } catch (notifyErr) {
+            console.error('Notification error (approveEvent):', notifyErr.message);
+        }
 
         res.json({ message: `Event ${approved ? 'approved' : 'rejected'} successfully`, event });
     } catch (error) {

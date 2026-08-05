@@ -4,6 +4,7 @@ const Registration = require('../models/Registration');
 const Task = require('../models/Task');
 const Feedback = require('../models/Feedback');
 const Certificate = require('../models/Certificate');
+const { sendNotification } = require('../utils/notification'); // ✅ Notification import
 
 // ==================== MAIN STATS ====================
 exports.getOrganizerDashboardStats = async (req, res) => {
@@ -27,13 +28,12 @@ exports.getOrganizerDashboardStats = async (req, res) => {
         const approvedEvents = await Event.countDocuments({ _id: { $in: eventIds }, approved: true });
         const rejectedEvents = await Event.countDocuments({ _id: { $in: eventIds }, approved: false });
 
-       // Registrations - ✅ Attendance formula
-const totalRegistrations = await Registration.countDocuments({ event_id: { $in: eventIds } });
-const presentCount = await Registration.countDocuments({ 
-    event_id: { $in: eventIds }, 
-    attendance_status: 'Present' 
-});
-const absentCount = totalRegistrations - presentCount;  // ✅ YEH LINE ADD KAREN
+        const totalRegistrations = await Registration.countDocuments({ event_id: { $in: eventIds } });
+        const presentCount = await Registration.countDocuments({ 
+            event_id: { $in: eventIds }, 
+            attendance_status: 'Present' 
+        });
+        const absentCount = totalRegistrations - presentCount;
 
         const totalTasks = await Task.countDocuments({ event_id: { $in: eventIds } });
         const completedTasks = await Task.countDocuments({ event_id: { $in: eventIds }, status: 'Completed' });
@@ -41,43 +41,42 @@ const absentCount = totalRegistrations - presentCount;  // ✅ YEH LINE ADD KARE
 
         const totalCertificates = await Certificate.countDocuments({ event_id: { $in: eventIds } });
 
-       // ✅ Yeh lagao
-const topEvents = await Feedback.aggregate([
-  {
-    $match: {
-      event_id: { $in: eventIds }   // sirf is organizer ke events
-    }
-  },
-  {
-    $group: {
-      _id: "$event_id",
-      avgRating: { $avg: "$rating" },
-      totalFeedbacks: { $sum: 1 }
-    }
-  },
-  { $sort: { avgRating: -1 } },
-  { $limit: 5 },
-  {
-    $lookup: {
-      from: "events",
-      localField: "_id",
-      foreignField: "_id",
-      as: "eventDetails"
-    }
-  },
-  {
-    $addFields: {
-      title: { $arrayElemAt: ["$eventDetails.title", 0] }
-    }
-  },
-  {
-    $project: {
-      avgRating: 1,
-      totalFeedbacks: 1,
-      title: 1
-    }
-  }
-]);
+        const topEvents = await Feedback.aggregate([
+            {
+                $match: {
+                    event_id: { $in: eventIds }
+                }
+            },
+            {
+                $group: {
+                    _id: "$event_id",
+                    avgRating: { $avg: "$rating" },
+                    totalFeedbacks: { $sum: 1 }
+                }
+            },
+            { $sort: { avgRating: -1 } },
+            { $limit: 5 },
+            {
+                $lookup: {
+                    from: "events",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "eventDetails"
+                }
+            },
+            {
+                $addFields: {
+                    title: { $arrayElemAt: ["$eventDetails.title", 0] }
+                }
+            },
+            {
+                $project: {
+                    avgRating: 1,
+                    totalFeedbacks: 1,
+                    title: 1
+                }
+            }
+        ]);
 
         res.json({
             events: { totalEvents, approvedEvents, rejectedEvents },
@@ -146,7 +145,6 @@ exports.getRegistrationTrends = async (req, res) => {
 
         if (eventIds.length === 0) return res.json({ trends: [] });
 
-        // Last 7 days
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -168,7 +166,6 @@ exports.getRegistrationTrends = async (req, res) => {
             { $sort: { _id: 1 } }
         ]);
 
-        // Fill missing days with 0
         const result = [];
         for (let i = 6; i >= 0; i--) {
             const date = new Date();
@@ -184,5 +181,114 @@ exports.getRegistrationTrends = async (req, res) => {
         res.json({ trends: result });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+// ==================== NEW: SEND NOTIFICATION TO ORGANIZER ====================
+// 🆕 This can be called from other controllers to notify organizer
+exports.sendOrganizerNotification = async (req, res) => {
+    try {
+        const { title, message, type = 'system', relatedId = null } = req.body;
+        const organizerId = req.user.id;
+
+        const notification = await sendNotification(
+            organizerId,
+            title,
+            message,
+            type,
+            relatedId
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Notification sent successfully',
+            data: notification
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// ==================== NEW: GET ORGANIZER NOTIFICATIONS ====================
+exports.getOrganizerNotifications = async (req, res) => {
+    try {
+        const { getUserNotifications } = require('../utils/notification');
+        const result = await getUserNotifications(req.user.id);
+
+        if (result.success) {
+            res.status(200).json({
+                success: true,
+                notifications: result.notifications,
+                unreadCount: result.unreadCount
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: result.message
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==================== NEW: MARK NOTIFICATION AS READ ====================
+exports.markNotificationRead = async (req, res) => {
+    try {
+        const { markAsRead } = require('../utils/notification');
+        const result = await markAsRead(req.params.id, req.user.id);
+
+        if (result.success) {
+            res.status(200).json({
+                success: true,
+                message: 'Notification marked as read',
+                notification: result.notification
+            });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==================== NEW: MARK ALL NOTIFICATIONS AS READ ====================
+exports.markAllNotificationsRead = async (req, res) => {
+    try {
+        const { markAllAsRead } = require('../utils/notification');
+        const result = await markAllAsRead(req.user.id);
+
+        if (result.success) {
+            res.status(200).json({
+                success: true,
+                message: 'All notifications marked as read'
+            });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==================== NEW: DELETE NOTIFICATION ====================
+exports.deleteNotification = async (req, res) => {
+    try {
+        const { deleteNotification } = require('../utils/notification');
+        const result = await deleteNotification(req.params.id, req.user.id);
+
+        if (result.success) {
+            res.status(200).json({
+                success: true,
+                message: 'Notification deleted successfully'
+            });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
 };

@@ -2,6 +2,7 @@ const Registration = require('../models/Registration');
 const Event = require('../models/Event');
 const Student = require('../models/Student');
 const { generateRegistrationQR } = require('../utils/registration.utils');
+const { sendNotification } = require('../utils/notification'); // ✅ Notification import
 
 // ------------------ REGISTER STUDENT / VOLUNTEER ------------------
 exports.registerForEvent = async (req, res) => {
@@ -27,6 +28,35 @@ exports.registerForEvent = async (req, res) => {
         registration.qrCode = qrCode;
         await registration.save();
 
+        // 🆕 Notify Student about successful registration
+        try {
+            await sendNotification(
+                student_id,
+                'Registration Successful ✅',
+                `You have successfully registered for "${event.title}" as a ${role}.`,
+                'system',
+                registration._id
+            );
+        } catch (notifyErr) {
+            console.error('Notification error (registerForEvent):', notifyErr.message);
+        }
+
+        // 🆕 Notify Organizer about new registration
+        try {
+            if (event.organizer_id) {
+                const student = await Student.findById(student_id);
+                await sendNotification(
+                    event.organizer_id,
+                    'New Registration 🎯',
+                    `${student?.name || 'A student'} has registered for "${event.title}" as a ${role}.`,
+                    'system',
+                    registration._id
+                );
+            }
+        } catch (notifyErr) {
+            console.error('Notification error (registerForEvent - organizer):', notifyErr.message);
+        }
+
         res.status(201).json({ message: 'Registration successful', registration, qrCode });
 
     } catch (error) {
@@ -40,7 +70,7 @@ exports.cancelRegistration = async (req, res) => {
         const { id } = req.params;
         const student_id = req.user.id;
 
-        const registration = await Registration.findById(id).populate('event_id', 'start_date title');
+        const registration = await Registration.findById(id).populate('event_id', 'start_date title organizer_id');
         if (!registration) return res.status(404).json({ message: 'Registration not found' });
 
         if (registration.student_id.toString() !== student_id)
@@ -52,7 +82,35 @@ exports.cancelRegistration = async (req, res) => {
         if (registration.attendance_status === 'Present')
             return res.status(400).json({ message: 'Cannot cancel registration after attendance is marked' });
 
+        const eventTitle = registration.event_id.title;
         await Registration.findByIdAndDelete(id);
+
+        // 🆕 Notify Student about cancellation
+        try {
+            await sendNotification(
+                student_id,
+                'Registration Cancelled ❌',
+                `Your registration for "${eventTitle}" has been cancelled.`,
+                'system'
+            );
+        } catch (notifyErr) {
+            console.error('Notification error (cancelRegistration):', notifyErr.message);
+        }
+
+        // 🆕 Notify Organizer about cancellation
+        try {
+            if (registration.event_id.organizer_id) {
+                await sendNotification(
+                    registration.event_id.organizer_id,
+                    'Registration Cancelled ❌',
+                    `A student has cancelled their registration for "${eventTitle}".`,
+                    'system'
+                );
+            }
+        } catch (notifyErr) {
+            console.error('Notification error (cancelRegistration - organizer):', notifyErr.message);
+        }
+
         res.json({ success: true, message: 'Registration cancelled successfully' });
 
     } catch (error) {
@@ -77,7 +135,7 @@ exports.markAttendanceByQR = async (req, res) => {
 
         const registration = await Registration.findById(registrationId)
             .populate({ path: 'student_id', select: 'name email studentId phone' })
-            .populate({ path: 'event_id', select: 'title start_date end_date venue image_url' });
+            .populate({ path: 'event_id', select: 'title start_date end_date venue image_url organizer_id' });
 
         if (!registration)
             return res.status(404).json({ message: 'Registration not found.' });
@@ -88,6 +146,19 @@ exports.markAttendanceByQR = async (req, res) => {
         registration.attendance_status = 'Present';
         registration.attendance_time = new Date();
         await registration.save();
+
+        // 🆕 Notify Student about attendance marked
+        try {
+            await sendNotification(
+                registration.student_id._id,
+                'Attendance Marked ✅',
+                `Your attendance has been marked for "${registration.event_id.title}".`,
+                'system',
+                registration._id
+            );
+        } catch (notifyErr) {
+            console.error('Notification error (markAttendanceByQR):', notifyErr.message);
+        }
 
         res.json({
             success: true,
@@ -152,11 +223,10 @@ exports.getStudentRegistrations = async (req, res) => {
         res.json({ success: true, data: formattedData });
 
     } catch (error) {
-        console.error("MY-REGISTRATIONS ERROR:", error.message); // ✅
+        console.error("MY-REGISTRATIONS ERROR:", error.message);
         res.status(500).json({ message: error.message });
     }
 };
-
 
 // ------------------ GET VOLUNTEERS BY EVENT ------------------
 exports.getVolunteersByEvent = async (req, res) => {
@@ -181,7 +251,6 @@ exports.getVolunteersByEvent = async (req, res) => {
   }
 };
 
-
 // ------------------ EXPORT ATTENDANCE REPORT (EXCEL) ------------------
 const ExcelJS = require('exceljs');
 
@@ -193,7 +262,6 @@ exports.exportAttendanceReport = async (req, res) => {
         workbook.created = new Date();
 
         if (event_id) {
-            // ── SINGLE EVENT REPORT ──
             const event = await Event.findById(event_id);
             if (!event) {
                 return res.status(404).json({ success: false, message: 'Event not found' });
@@ -226,7 +294,6 @@ exports.exportAttendanceReport = async (req, res) => {
                 });
             });
 
-            // Summary row
             const present = registrations.filter(r => r.attendance_status === 'Present').length;
             const absent = registrations.filter(r => r.attendance_status !== 'Present').length;
             sheet.addRow({});
@@ -240,7 +307,6 @@ exports.exportAttendanceReport = async (req, res) => {
             return res.end();
 
         } else {
-            // ── ALL EVENTS REPORT (summary sheet + per-event sheets) ──
             const events = await Event.find().sort({ start_date: -1 });
 
             const summarySheet = workbook.addWorksheet('Summary');
@@ -280,15 +346,12 @@ exports.exportAttendanceReport = async (req, res) => {
     }
 };
 
-
-
 // ------------------ PREVIEW ATTENDANCE REPORT (JSON) ------------------
 exports.previewAttendanceReport = async (req, res) => {
     try {
         const { event_id } = req.query;
 
         if (event_id) {
-            // ── SINGLE EVENT PREVIEW ──
             const event = await Event.findById(event_id).select('title start_date venue');
             if (!event) {
                 return res.status(404).json({ success: false, message: 'Event not found' });
@@ -324,7 +387,6 @@ exports.previewAttendanceReport = async (req, res) => {
             });
 
         } else {
-            // ── ALL EVENTS PREVIEW (summary only) ──
             const events = await Event.find().sort({ start_date: -1 }).select('title start_date');
 
             const summary = [];

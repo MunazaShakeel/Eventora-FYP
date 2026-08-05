@@ -36,39 +36,6 @@ const AdminSidebar = () => {
     navigate("/login-admin");
   };
 
-  // ── Fetch notifications from API ──
-  const fetchNotifications = async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const response = await axios.get(`${API_URL}/notifications`, { headers });
-
-      if (response.data.success) {
-        const notifs = response.data.notifications.map(notif => ({
-          id: notif._id,
-          _id: notif._id,
-          title: notif.title,
-          message: notif.message,
-          type: notif.type,
-          isRead: notif.isRead,
-          time: notif.createdAt ? new Date(notif.createdAt).toLocaleString() : "",
-          icon: getIconByType(notif.type),
-          color: getColorByType(notif.type),
-          bg: getBgByType(notif.type)
-        }));
-
-        setNotifications(notifs);
-        setUnreadCount(response.data.unreadCount);
-      }
-    } catch (err) {
-      console.error("Notification fetch failed:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const getIconByType = (type) => {
     switch (type) {
       case 'event': return 'event';
@@ -99,6 +66,37 @@ const AdminSidebar = () => {
     }
   };
 
+  const fetchNotifications = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/notifications`, { headers });
+
+      if (response.data.success) {
+        const notifs = response.data.notifications.map(notif => ({
+          id: notif._id,
+          _id: notif._id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          isRead: notif.isRead,
+          time: notif.createdAt ? new Date(notif.createdAt).toLocaleString() : "",
+          icon: getIconByType(notif.type),
+          color: getColorByType(notif.type),
+          bg: getBgByType(notif.type)
+        }));
+
+        setNotifications(notifs);
+        setUnreadCount(response.data.unreadCount);
+      }
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const markAsRead = async (notificationId) => {
     if (!token) return;
     try {
@@ -115,19 +113,25 @@ const AdminSidebar = () => {
     }
   };
 
-  const markAllAsRead = async () => {
-    if (!token) return;
-    try {
-      await axios.put(`${API_URL}/notifications/read-all`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-    } catch (err) {
-      console.error("Error marking all as read:", err);
-    }
-  };
+ // 🔄 REPLACE existing markAllAsRead with this:
+const markAllAsRead = async () => {
+  if (!token) return;
+  try {
+    await axios.put(`${API_URL}/notifications/read-all`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // ✅ Sab notifications ko read mark karein
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+    
+    // ✅ Force re-fetch to sync with server
+    await fetchNotifications();
+    
+  } catch (err) {
+    console.error("Error marking all as read:", err);
+  }
+};
 
   const deleteNotification = async (notificationId) => {
     if (!token) return;
@@ -146,11 +150,11 @@ const AdminSidebar = () => {
     }
   };
 
-  // ── Socket Listeners ──
+  // ── Socket Listeners (WITH SAFE CHECK) ──
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('new-notification', (notification) => {
+    const handleNewNotification = (notification) => {
       const newNotif = {
         id: notification._id,
         _id: notification._id,
@@ -166,35 +170,18 @@ const AdminSidebar = () => {
 
       setNotifications(prev => [newNotif, ...prev]);
       setUnreadCount(prev => prev + 1);
+    };
 
-      showToast(notification);
-    });
+    if (socket && typeof socket.on === 'function') {
+      socket.on('new-notification', handleNewNotification);
+    }
 
     return () => {
-      socket.off('new-notification');
+      if (socket && typeof socket.off === 'function') {
+        socket.off('new-notification', handleNewNotification);
+      }
     };
   }, [socket]);
-
-  const showToast = (notification) => {
-    const toast = document.createElement('div');
-    toast.className = 'fixed bottom-20 right-4 bg-white rounded-lg shadow-2xl p-3 max-w-sm z-50 animate-slide-up';
-    toast.innerHTML = `
-      <div class="flex items-start gap-2">
-        <div class="w-8 h-8 rounded-full bg-linear-to-r from-[#8b4fa2] to-[#4ECDC4] flex items-center justify-center">
-          <span class="text-white text-sm">🔔</span>
-        </div>
-        <div class="flex-1">
-          <h4 class="font-bold text-gray-800 text-sm">${notification.title}</h4>
-          <p class="text-xs text-gray-600">${notification.message}</p>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 300);
-    }, 4000);
-  };
 
   // ── Fetch on mount & interval ──
   useEffect(() => {
@@ -217,9 +204,8 @@ const AdminSidebar = () => {
 
   const SidebarContent = () => (
     <>
-      {/* Logo */}
       <div className="px-8 py-6 shrink-0">
-        <Link to="/admin-dashboard" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
+        <Link to="/" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
           <span className="text-5xl font-bold relative" style={{ fontFamily: "Great Vibes, cursive" }}>
             <span className="text-[#9B59B6]">Event</span>
             <span className="text-yellow-500">ora</span>
@@ -229,7 +215,6 @@ const AdminSidebar = () => {
         <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mt-1">Admin Portal</p>
       </div>
 
-      {/* Nav Links */}
       <nav className="flex-1 overflow-y-auto px-4 space-y-0.5">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
@@ -253,7 +238,6 @@ const AdminSidebar = () => {
         })}
       </nav>
 
-      {/* Logout */}
       <div className="px-4 py-4 shrink-0">
         <button
           onClick={handleLogout}
@@ -275,7 +259,6 @@ const AdminSidebar = () => {
 
       {/* ── MOBILE: Top Header Bar ── */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 shadow-sm px-4 h-14 flex items-center justify-between">
-        {/* Hamburger */}
         <button
           onClick={() => setSidebarOpen(true)}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition"
@@ -283,13 +266,12 @@ const AdminSidebar = () => {
           <span className="material-symbols-outlined text-[22px] text-gray-600">menu</span>
         </button>
 
-        {/* Logo */}
         <span className="text-2xl font-bold" style={{ fontFamily: "Great Vibes, cursive" }}>
           <span className="text-[#9B59B6]">Event</span>
           <span className="text-yellow-500">ora</span>
         </span>
 
-        {/* Notification Bell */}
+        {/* 🔔 MOBILE NOTIFICATION BELL */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => { setNotifOpen(!notifOpen); }}

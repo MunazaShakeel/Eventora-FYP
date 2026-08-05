@@ -6,6 +6,7 @@ const Event = require('../models/Event');
 const Feedback = require('../models/Feedback');
 const Gallery = require('../models/Gallery');
 const Certificate = require('../models/Certificate');
+const { sendNotification } = require('../utils/notification'); // ✅ Notification import
 
 // 1) My Registrations
 exports.getMyRegistrations = async (req, res) => {
@@ -66,6 +67,22 @@ exports.submitEventResponse = async (req, res) => {
             comments,
             submitted_at: new Date()
         });
+
+        // 🆕 Notify Organizer about feedback
+        try {
+            if (event.organizer_id) {
+                const student = await Student.findById(studentId);
+                await sendNotification(
+                    event.organizer_id,
+                    'New Feedback Received ⭐',
+                    `${student?.name || 'A student'} gave ${rating}★ rating for your event "${event.title}"`,
+                    'system',
+                    event._id
+                );
+            }
+        } catch (notifyErr) {
+            console.error('Notification error (submitEventResponse):', notifyErr.message);
+        }
 
         res.status(201).json({
             success: true,
@@ -147,6 +164,19 @@ exports.downloadCertificate = async (req, res) => {
 
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ success: false, message: 'Certificate file missing on server' });
+        }
+
+        // 🆕 Notify student about certificate download
+        try {
+            await sendNotification(
+                studentId,
+                'Certificate Downloaded 📄',
+                `You downloaded your certificate for "${certificate.event_id?.title || 'Event'}".`,
+                'certificate',
+                certificate_id
+            );
+        } catch (notifyErr) {
+            console.error('Notification error (downloadCertificate):', notifyErr.message);
         }
 
         return res.download(filePath);

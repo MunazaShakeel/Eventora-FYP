@@ -3,6 +3,7 @@ import StudentSidebar from "../../components/StudentSidebar";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
+import { useSocket } from "../../context/SocketContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell
@@ -85,7 +86,124 @@ const QuickActionButton = ({ action, onClick, index }) => (
   </button>
 );
 
-// Event Hover Card Component - TIME REMOVED
+// ── NOTIFICATION BELL COMPONENT ──
+const NotificationBell = ({ 
+  notifications, 
+  unreadCount, 
+  loadingNotifs, 
+  onToggle, 
+  isOpen, 
+  onMarkRead, 
+  onMarkAllRead, 
+  onDelete, 
+  dropdownRef 
+}) => {
+  const formatTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+    return date.toLocaleDateString('en-PK', { day: 'numeric', month: 'short' });
+  };
+
+  const getIconByType = (type) => {
+    switch (type) {
+      case 'event': return '📅';
+      case 'certificate': return '🏆';
+      case 'task': return '📋';
+      case 'attendance': return '✅';
+      default: return '📢';
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch (type) {
+      case 'event': return '#f5eefa';
+      case 'certificate': return '#fffce8';
+      case 'task': return '#e6faf8';
+      case 'attendance': return '#d1fae5';
+      default: return '#f3f4f6';
+    }
+  };
+
+  return (
+    <div className="relative hidden md:block" ref={dropdownRef}>
+      <button
+        onClick={onToggle}
+        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition relative"
+      >
+        <span className="material-symbols-outlined text-[22px] text-gray-600">
+          {unreadCount > 0 ? 'notifications_active' : 'notifications'}
+        </span>
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
+            <p className="text-sm font-black text-gray-800">Notifications</p>
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button 
+                  onClick={onMarkAllRead} 
+                  className="text-[10px] font-bold text-[#8b4fa2] bg-purple-100 px-2 py-0.5 rounded-full hover:bg-purple-200 transition"
+                >
+                  Mark all read
+                </button>
+              )}
+              <span className="text-[10px] font-bold text-[#8b4fa2] bg-purple-50 px-2 py-0.5 rounded-full">
+                {unreadCount} new
+              </span>
+            </div>
+          </div>
+
+          {loadingNotifs ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+              <span className="material-symbols-outlined text-[36px] mb-2">notifications_none</span>
+              <p className="text-sm font-semibold">No notifications</p>
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+              {notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? 'bg-purple-50/30' : ''}`}
+                  onClick={() => !n.isRead && onMarkRead(n._id)}
+                >
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: getBgByType(n.type) }}>
+                    <span className="text-lg">{getIconByType(n.type)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 leading-snug">{n.title}</p>
+                    <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">{n.message}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{formatTime(n.time)}</p>
+                  </div>
+                  {!n.isRead && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#8b4fa2] shrink-0 mt-1" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Event Hover Card Component
 const EventHoverCard = ({ event, position }) => {
   const [show, setShow] = useState(false);
   
@@ -130,7 +248,7 @@ const EventHoverCard = ({ event, position }) => {
         )}
       </div>
       
-      {/* Hover Card - TIME REMOVED */}
+      {/* Hover Card */}
       {show && (
         <div className="absolute z-50 bottom-full left-0 mb-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 transition-all duration-200 animate-fadeInUp">
           <div className="flex items-start gap-3">
@@ -139,8 +257,6 @@ const EventHoverCard = ({ event, position }) => {
             </div>
             <div className="flex-1">
               <h4 className="font-bold text-gray-800 text-sm">{event.title}</h4>
-              
-              {/* ✅ Date - Working */}
               <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
                 <span className="material-symbols-outlined text-[12px]">calendar_today</span>
                 {new Date(event.start_date).toLocaleDateString("en-PK", { 
@@ -150,20 +266,10 @@ const EventHoverCard = ({ event, position }) => {
                   day: "numeric" 
                 })}
               </p>
-              
-              {/* ❌ TIME REMOVED - Ye line hata di */}
-              {/* <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                <span className="material-symbols-outlined text-[12px]">schedule</span>
-                {event.start_time || "Time TBA"}
-              </p> */}
-              
-              {/* ✅ Venue - Working */}
               <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                 <span className="material-symbols-outlined text-[12px]">location_on</span>
                 {event.venue || "Venue TBA"}
               </p>
-              
-              {/* Description */}
               {event.description && (
                 <p className="text-xs text-gray-400 mt-2 line-clamp-2">{event.description}</p>
               )}
@@ -178,6 +284,8 @@ const EventHoverCard = ({ event, position }) => {
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const { user, token } = useAuth();
+  const socket = useSocket();
+  const notifRef = useRef(null);
 
   const [studentName, setStudentName] = useState("");
   const [myRegistrations, setMyRegistrations] = useState([]);
@@ -192,8 +300,154 @@ const StudentDashboard = () => {
   const [greeting, setGreeting] = useState("");
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
+  
+  // ── Notification States ──
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
 
-  // Greeting + Clock
+  // ── Notification Functions ──
+  const getIconByType = (type) => {
+    switch (type) {
+      case 'event': return 'event';
+      case 'certificate': return 'workspace_premium';
+      case 'attendance': return 'qr_code_scanner';
+      case 'task': return 'task_alt';
+      default: return 'notifications';
+    }
+  };
+
+  const getColorByType = (type) => {
+    switch (type) {
+      case 'event': return '#8b4fa2';
+      case 'certificate': return '#FFE66D';
+      case 'attendance': return '#4ECDC4';
+      case 'task': return '#FF6B6B';
+      default: return '#8b4fa2';
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch (type) {
+      case 'event': return '#f5eefa';
+      case 'certificate': return '#fff9e6';
+      case 'attendance': return '#e6faf8';
+      case 'task': return '#ffe6e6';
+      default: return '#f5eefa';
+    }
+  };
+
+  const fetchNotifications = async () => {
+    if (!token) return;
+    setLoadingNotifs(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/notifications`, { headers });
+      if (response.data.success) {
+        const notifs = response.data.notifications.map(notif => ({
+          id: notif._id,
+          _id: notif._id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          isRead: notif.isRead,
+          time: notif.createdAt ? new Date(notif.createdAt).toISOString() : new Date().toISOString(),
+          icon: getIconByType(notif.type),
+          color: getColorByType(notif.type),
+          bg: getBgByType(notif.type)
+        }));
+        setNotifications(notifs);
+        setUnreadCount(response.data.unreadCount || 0);
+      }
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/notifications/${notificationId}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setNotifications(prev =>
+        prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Error marking as read:", err);
+    }
+  };
+
+  // 🔄 REPLACE existing markAllAsRead with this:
+const markAllAsRead = async () => {
+  if (!token) return;
+  try {
+    await axios.put(`${API_URL}/notifications/read-all`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // ✅ Sab notifications ko read mark karein
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+    
+    // ✅ Force re-fetch to sync with server
+    await fetchNotifications();
+    
+  } catch (err) {
+    console.error("Error marking all as read:", err);
+  }
+};
+
+  const deleteNotification = async (notificationId) => {
+    if (!token) return;
+    try {
+      await axios.delete(`${API_URL}/notifications/${notificationId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setNotifications(prev => prev.filter(n => n._id !== notificationId));
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+    }
+  };
+
+  // ── Socket Listeners ──
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewNotification = (notification) => {
+      const newNotif = {
+        id: notification._id,
+        _id: notification._id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        isRead: false,
+        time: new Date().toISOString(),
+        icon: getIconByType(notification.type),
+        color: getColorByType(notification.type),
+        bg: getBgByType(notification.type)
+      };
+
+      setNotifications(prev => [newNotif, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    };
+
+    if (socket && typeof socket.on === 'function') {
+      socket.on('new-notification', handleNewNotification);
+    }
+
+    return () => {
+      if (socket && typeof socket.off === 'function') {
+        socket.off('new-notification', handleNewNotification);
+      }
+    };
+  }, [socket]);
+
+  // ── Greeting + Clock ──
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Good Morning");
@@ -210,7 +464,24 @@ const StudentDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch Data
+  // ── Notifications Fetch ──
+  useEffect(() => {
+    if (!token) return;
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  // ── Outside Click ──
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // ── Fetch Data ──
   useEffect(() => {
     if (!token || !user) return;
 
@@ -219,12 +490,10 @@ const StudentDashboard = () => {
         const headers = { Authorization: `Bearer ${token}` };
         const studentId = user.id;
 
-        // ─── FETCH PROFILE ───
         const profileRes = await axios.get(`${API_URL}/students/me`, { headers });
         const profile = profileRes.data?.student || profileRes.data;
         if (profile?.name) setStudentName(profile.name);
 
-        // ─── FETCH REGISTRATIONS ───
         const regRes = await axios.get(`${API_URL}/registrations/my-registrations`, { headers });
         const regList = Array.isArray(regRes.data)
           ? regRes.data
@@ -235,14 +504,11 @@ const StudentDashboard = () => {
           : [];
         setMyRegistrations(regList);
 
-        // ─── ✅ FETCH CERTIFICATES (FIXED) ───
         try {
-          // ✅ CORRECT ENDPOINT: /certificates/my
           const certRes = await axios.get(`${API_URL}/certificates/my`, { 
             headers: { Authorization: `Bearer ${token}` } 
           });
           
-          // Handle different response formats
           let certs = [];
           if (Array.isArray(certRes.data)) {
             certs = certRes.data;
@@ -253,10 +519,8 @@ const StudentDashboard = () => {
           }
           
           setCertificatesCount(certs.length);
-          console.log(`✅ Found ${certs.length} certificates`);
         } catch (certErr) {
           console.error("Error fetching certificates:", certErr);
-          // Don't show error to user, just set to 0
           setCertificatesCount(0);
         }
 
@@ -289,7 +553,6 @@ const StudentDashboard = () => {
         .slice(0, 5);
       setRecentActivities(recent);
 
-      // Generate chart data based on type
       generateChartData(myRegistrations, chartType);
     }
   }, [myRegistrations, chartType]);
@@ -469,8 +732,26 @@ const StudentDashboard = () => {
                 <p className="text-sm text-gray-400 mt-2">Track your events, certificates, and campus activities</p>
               </div>
 
-              {/* Live Clock */}
               <div className="flex items-center gap-4">
+                {/* 🔔 NOTIFICATION BELL */}
+                <NotificationBell
+                  notifications={notifications}
+                  unreadCount={unreadCount}
+                  loadingNotifs={loadingNotifs}
+                  isOpen={notifOpen}
+                  onToggle={() => {
+                    setNotifOpen(!notifOpen);
+                    if (!notifOpen && unreadCount > 0) {
+                      markAllAsRead();
+                    }
+                  }}
+                  onMarkRead={markAsRead}
+                  onMarkAllRead={markAllAsRead}
+                  onDelete={deleteNotification}
+                  dropdownRef={notifRef}
+                />
+
+                {/* Live Clock */}
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex items-center gap-3 bg-white rounded-2xl px-6 py-3 shadow-lg border border-gray-100">
                     <div className="relative">

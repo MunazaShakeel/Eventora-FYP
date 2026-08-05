@@ -5,12 +5,12 @@ const Organizer = require('../models/Organizer');
 const Student = require('../models/Student');
 const { generateCertificate } = require('../utils/certificate.util');
 const { generateQR } = require('../utils/qr.util');
+const { sendNotification } = require('../utils/notification'); // ✅ Notification import
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-// ------------------ ISSUE CERTIFICATE (FIXED) ------------------
-// ------------------ ISSUE CERTIFICATE (COMPLETELY FIXED) ------------------
+// ------------------ ISSUE CERTIFICATE ------------------
 exports.issueCertificate = async (req, res) => {
      try {
         console.log('========== CERTIFICATE ISSUE REQUEST ==========');
@@ -18,7 +18,7 @@ exports.issueCertificate = async (req, res) => {
         console.log('👤 User:', req.user?.id, req.user?.role);
         
         const { student_id, event_id, certificate_type = 'Participation' } = req.body;
-        const user = req.user;   // 👈 ADD KARO
+        const user = req.user;
         
         // Validate input
         if (!student_id || !event_id) {
@@ -136,7 +136,7 @@ exports.issueCertificate = async (req, res) => {
         const certificateData = {
             student_id: student._id,
             event_id: event._id,
-            organizer_id: event.organizer_id || user.id,  // Fallback to current user
+            organizer_id: event.organizer_id || user.id,
             certificate_type: certificate_type,
             issued_date: new Date(),
             qr_data: qrData,
@@ -149,6 +149,19 @@ exports.issueCertificate = async (req, res) => {
 
         const certificate = await Certificate.create(certificateData);
         console.log('✅ Certificate created with ID:', certificate._id);
+
+        // 🆕 NOTIFICATION: Certificate issued to student
+        try {
+            await sendNotification(
+                student_id,
+                'Certificate Issued! 🎉',
+                `Congratulations! You have been awarded a "${certificate_type}" certificate for "${event.title}". You can view and download it from your dashboard.`,
+                'certificate',
+                certificate._id
+            );
+        } catch (notifyErr) {
+            console.error('Notification error (issueCertificate):', notifyErr.message);
+        }
 
         console.log('9️⃣ Populating certificate...');
         const populatedCertificate = await Certificate.findById(certificate._id)
@@ -180,8 +193,6 @@ exports.issueCertificate = async (req, res) => {
     }
 };
 
-
-
 // ------------------ BULK ISSUE CERTIFICATES ------------------
 exports.issueBulkCertificates = async (req, res) => {
     try {
@@ -200,16 +211,13 @@ exports.issueBulkCertificates = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Event not found' });
         }
 
-        // Organizer sirf apne event pe issue kar sake
         if (user.role === 'Organizer' && event.organizer_id?.toString() !== user.id.toString()) {
             return res.status(403).json({ success: false, message: 'You can only issue certificates for your own events' });
         }
 
-        // ── Target decide karo: specific student_ids / All Students / All Volunteers ──
         let registrations = [];
 
         if (Array.isArray(student_ids) && student_ids.length > 0) {
-            // Organizer ne khud checkbox se students select kiye
             registrations = await Registration.find({
                 event_id,
                 student_id: { $in: student_ids },
@@ -228,7 +236,6 @@ exports.issueBulkCertificates = async (req, res) => {
                 attendance_status: 'Present'
             });
         } else {
-            // target === 'All' → present sab (Students + Volunteers)
             registrations = await Registration.find({
                 event_id,
                 attendance_status: 'Present'
@@ -247,7 +254,6 @@ exports.issueBulkCertificates = async (req, res) => {
 
         for (const reg of registrations) {
             try {
-                // Pehle se issued hai to skip karo
                 const existing = await Certificate.findOne({ student_id: reg.student_id, event_id });
                 if (existing) {
                     results.skipped.push(reg.student_id.toString());
@@ -299,6 +305,19 @@ exports.issueBulkCertificates = async (req, res) => {
                 const cert = await Certificate.create(certData);
                 results.issued.push(cert._id);
 
+                // 🆕 NOTIFICATION: Each student gets notification
+                try {
+                    await sendNotification(
+                        student._id,
+                        'Certificate Issued! 🎉',
+                        `Congratulations! You have been awarded a "${certificate_type}" certificate for "${event.title}". View it in your dashboard.`,
+                        'certificate',
+                        cert._id
+                    );
+                } catch (notifyErr) {
+                    console.error('Notification error for student:', student._id);
+                }
+
             } catch (innerErr) {
                 console.log('❌ Failed for student', reg.student_id, innerErr.message);
                 results.failed.push(reg.student_id.toString());
@@ -323,17 +342,14 @@ exports.issueBulkCertificates = async (req, res) => {
     }
 };
 
-
-
-
-// ------------------ GET STUDENT CERTIFICATES (FIXED) ------------------
+// ------------------ GET STUDENT CERTIFICATES ------------------
 exports.getCertificatesByStudent = async (req, res) => {
     try {
         const student_id = req.user.id;
         const certificates = await Certificate.find({ student_id })
             .populate('student_id', 'name email department grade')
             .populate('event_id', 'title start_date end_date venue')
-            .populate('organizer_id', 'name email department');  // ✅ Organizer added
+            .populate('organizer_id', 'name email department');
 
         res.status(200).json({ 
             success: true, 
@@ -349,7 +365,7 @@ exports.getCertificatesByStudent = async (req, res) => {
     }
 };
 
-// ------------------ GET ALL CERTIFICATES (FIXED) ------------------
+// ------------------ GET ALL CERTIFICATES ------------------
 exports.getAllCertificates = async (req, res) => {
     try {
         const user = req.user;
@@ -368,7 +384,7 @@ exports.getAllCertificates = async (req, res) => {
         const certificates = await Certificate.find(query)
             .populate('student_id', 'name email department grade')
             .populate('event_id', 'title start_date end_date venue')
-            .populate('organizer_id', 'name email department')  // ✅ Organizer added
+            .populate('organizer_id', 'name email department')
             .sort({ issued_date: -1 });
 
         res.status(200).json({ 
@@ -386,7 +402,7 @@ exports.getAllCertificates = async (req, res) => {
     }
 };
 
-// ------------------ GET ORGANIZER'S CERTIFICATES (FIXED) ------------------
+// ------------------ GET ORGANIZER'S CERTIFICATES ------------------
 exports.getOrganizerCertificates = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -405,7 +421,7 @@ exports.getOrganizerCertificates = async (req, res) => {
         const certificates = await Certificate.find({ event_id: { $in: eventIds } })
             .populate('student_id', 'name email department grade')
             .populate('event_id', 'title start_date end_date venue')
-            .populate('organizer_id', 'name email department')  // ✅ Organizer added
+            .populate('organizer_id', 'name email department')
             .sort({ issued_date: -1 });
         
         res.status(200).json({
@@ -423,7 +439,7 @@ exports.getOrganizerCertificates = async (req, res) => {
     }
 };
 
-// ------------------ DOWNLOAD CERTIFICATE (FIXED) ------------------
+// ------------------ DOWNLOAD CERTIFICATE ------------------
 exports.downloadCertificate = async (req, res) => {
     try {
         const { id } = req.params;
@@ -431,7 +447,7 @@ exports.downloadCertificate = async (req, res) => {
         const certificate = await Certificate.findById(id)
             .populate('student_id', 'name email registration_no department grade')
             .populate('event_id', 'title start_date end_date venue')
-            .populate('organizer_id', 'name email department');  // ✅ Organizer added
+            .populate('organizer_id', 'name email department');
         
         if (!certificate) {
             return res.status(404).json({ 
@@ -472,7 +488,7 @@ exports.downloadCertificate = async (req, res) => {
     }
 };
 
-// ------------------ DELETE CERTIFICATE (FIXED) ------------------
+// ------------------ DELETE CERTIFICATE ------------------
 exports.deleteCertificate = async (req, res) => {
     try {
         const { id } = req.params;
@@ -524,7 +540,7 @@ exports.deleteCertificate = async (req, res) => {
     }
 };
 
-// ------------------ UPDATE CERTIFICATE (FIXED) ------------------
+// ------------------ UPDATE CERTIFICATE ------------------
 exports.updateCertificate = async (req, res) => {
     try {
         const { id } = req.params;
@@ -534,7 +550,7 @@ exports.updateCertificate = async (req, res) => {
         const certificate = await Certificate.findById(id)
             .populate('event_id', 'organizer_id title start_date venue')
             .populate('student_id', 'name registration_no')
-            .populate('organizer_id', 'name email');  // ✅ Organizer added
+            .populate('organizer_id', 'name email');
 
         if (!certificate) {
             return res.status(404).json({
@@ -580,14 +596,13 @@ exports.updateCertificate = async (req, res) => {
             issueDate: certificate.issued_date,
             qrCode,
             eventVenue: certificate.event_id.venue || 'College Campus',
-            organizerName: certificate.organizer_id?.name || 'Organizer'  // ✅ Organizer name for PDF
+            organizerName: certificate.organizer_id?.name || 'Organizer'
         });
 
         certificate.certificate_type = certificate_type;
         certificate.certificate_url = newPdfPath;
         await certificate.save();
 
-        // ✅ Populate before sending response
         const updatedCertificate = await Certificate.findById(certificate._id)
             .populate('student_id', 'name email department grade')
             .populate('event_id', 'title start_date end_date venue')
@@ -609,14 +624,14 @@ exports.updateCertificate = async (req, res) => {
     }
 };
 
-// ------------------ VERIFY CERTIFICATE (FIXED) ------------------
+// ------------------ VERIFY CERTIFICATE ------------------
 exports.verifyCertificate = async (req, res) => {
     try {
         const { certificate_id } = req.params;
         const certificate = await Certificate.findById(certificate_id)
             .populate('student_id', 'name email department grade')
             .populate('event_id', 'title start_date end_date venue')
-            .populate('organizer_id', 'name email department');  // ✅ Organizer added
+            .populate('organizer_id', 'name email department');
 
         if (!certificate) {
             return res.status(404).json({ 
@@ -640,7 +655,7 @@ exports.verifyCertificate = async (req, res) => {
     }
 };
 
-// ------------------ GENERATE CERTIFICATE PDF (FIXED) ------------------
+// ------------------ GENERATE CERTIFICATE PDF ------------------
 exports.generateCertificatePDF = ({
     studentName,
     studentReg,
@@ -650,7 +665,7 @@ exports.generateCertificatePDF = ({
     issueDate,
     qrCode,
     eventVenue,
-    organizerName = 'Organizer'  // ✅ Default value
+    organizerName = 'Organizer'
 }) => {
     return new Promise((resolve, reject) => {
         try {
@@ -703,7 +718,6 @@ exports.generateCertificatePDF = ({
             doc.moveDown(0.8);
             doc.fontSize(12).fillColor('#9ca3af').text(`Date: ${new Date(eventDate).toLocaleDateString()} | Venue: ${eventVenue}`, { align: 'center' });
             
-            // ✅ Organizer name added to PDF
             doc.moveDown(0.5);
             doc.fontSize(11).fillColor('#8b4fa2').text(`Organized by: ${organizerName}`, { align: 'center' });
             doc.moveDown(2);
@@ -729,7 +743,7 @@ exports.generateCertificatePDF = ({
     });
 };
 
-// ------------------ ADMIN: GET ALL CERTIFICATES (FIXED) ------------------
+// ------------------ ADMIN: GET ALL CERTIFICATES ------------------
 exports.getAdminCertificates = async (req, res) => {
     try {
         const { 
@@ -770,7 +784,7 @@ exports.getAdminCertificates = async (req, res) => {
             Certificate.find(query)
                 .populate('student_id', 'name email department grade')
                 .populate('event_id', 'title venue start_date')
-                .populate('organizer_id', 'name email department')  // ✅ Organizer added
+                .populate('organizer_id', 'name email department')
                 .sort({ issued_date: -1 })
                 .skip(skip)
                 .limit(parseInt(limit)),
@@ -795,13 +809,13 @@ exports.getAdminCertificates = async (req, res) => {
     }
 };
 
-// ------------------ ADMIN: GET SINGLE CERTIFICATE (FIXED) ------------------
+// ------------------ ADMIN: GET SINGLE CERTIFICATE ------------------
 exports.getAdminCertificateById = async (req, res) => {
     try {
         const certificate = await Certificate.findById(req.params.id)
             .populate('student_id', 'name email department grade')
             .populate('event_id', 'title venue start_date end_date')
-            .populate('organizer_id', 'name email department');  // ✅ Organizer added
+            .populate('organizer_id', 'name email department');
 
         if (!certificate) {
             return res.status(404).json({
@@ -824,13 +838,13 @@ exports.getAdminCertificateById = async (req, res) => {
     }
 };
 
-// ------------------ ADMIN: DOWNLOAD CERTIFICATE (FIXED) ------------------
+// ------------------ ADMIN: DOWNLOAD CERTIFICATE ------------------
 exports.downloadAdminCertificate = async (req, res) => {
     try {
         const certificate = await Certificate.findById(req.params.id)
             .populate('student_id', 'name email department grade')
             .populate('event_id', 'title')
-            .populate('organizer_id', 'name email');  // ✅ Organizer added
+            .populate('organizer_id', 'name email');
 
         if (!certificate) {
             return res.status(404).json({
@@ -839,14 +853,12 @@ exports.downloadAdminCertificate = async (req, res) => {
             });
         }
 
-        // Check file existence
         if (certificate.certificate_url && fs.existsSync(certificate.certificate_url)) {
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename=certificate_${certificate.certificate_number || certificate._id}.pdf`);
             return res.sendFile(certificate.certificate_url);
         }
 
-        // Generate HTML if PDF not found
         const htmlContent = generateCertificateHTML(certificate);
         res.setHeader('Content-Type', 'text/html');
         res.setHeader('Content-Disposition', `attachment; filename=certificate_${certificate.certificate_number || certificate._id}.html`);
@@ -862,7 +874,7 @@ exports.downloadAdminCertificate = async (req, res) => {
     }
 };
 
-// ------------------ ADMIN: DELETE/REVOKE CERTIFICATE (FIXED) ------------------
+// ------------------ ADMIN: DELETE/REVOKE CERTIFICATE ------------------
 exports.deleteAdminCertificate = async (req, res) => {
     try {
         const certificate = await Certificate.findById(req.params.id);
@@ -874,7 +886,6 @@ exports.deleteAdminCertificate = async (req, res) => {
             });
         }
 
-        // Soft delete - update status
         certificate.status = 'Revoked';
         await certificate.save();
 
@@ -893,7 +904,7 @@ exports.deleteAdminCertificate = async (req, res) => {
     }
 };
 
-// ------------------ HELPER: Generate HTML Certificate (FIXED) ------------------
+// ------------------ HELPER: Generate HTML Certificate ------------------
 const generateCertificateHTML = (certificate) => {
     const studentName = certificate.student_id?.name || 'Student';
     const studentDept = certificate.student_id?.department || '';
@@ -902,7 +913,7 @@ const generateCertificateHTML = (certificate) => {
     const eventDate = certificate.event_id?.start_date ? new Date(certificate.event_id.start_date).toLocaleDateString() : 'N/A';
     const issuedDate = new Date(certificate.issued_date).toLocaleDateString();
     const eventVenue = certificate.event_id?.venue || 'College Campus';
-    const organizerName = certificate.organizer_id?.name || 'Organizer';  // ✅ Organizer name
+    const organizerName = certificate.organizer_id?.name || 'Organizer';
     const organizerDept = certificate.organizer_id?.department || '';
     
     return `<!DOCTYPE html>

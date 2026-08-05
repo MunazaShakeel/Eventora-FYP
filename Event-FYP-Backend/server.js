@@ -7,7 +7,7 @@ const cors = require('cors');
 const Admin = require('./models/Admin');
 const bcrypt = require('bcryptjs');
 
-// 🆕 Notification imports
+//  Notification imports
 const http = require('http');
 const { initSocket } = require('./utils/socket');
 const notificationUtils = require('./utils/notification');
@@ -27,6 +27,9 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const organizerDashboardRoutes = require('./routes/organizerDashboard.routes');
 const studentDashboardRoutes = require('./routes/studentDashboard.routes');
 const volunteerDashboardRoutes = require('./routes/volunteerDashboard.routes');
+
+
+
 
 // 🆕 Import auth middleware
 const { authMiddleware, allowRoles } = require('./middleware/auth.middleware');
@@ -58,6 +61,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/organizer-dashboard', organizerDashboardRoutes);
 app.use('/api/student-dashboard', studentDashboardRoutes);
 app.use('/api/volunteer-dashboard', volunteerDashboardRoutes);
+
 
 
 // // Health Check (ADD THIS BEFORE ERROR HANDLER)

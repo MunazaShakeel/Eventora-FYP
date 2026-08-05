@@ -23,8 +23,8 @@ const Features = () => {
     },
     {
       icon: certificate,
-      title: "Auto Certificates",
-      desc: "Certificates generated and sent automatically after each event.",
+      title: "Certificates Generation",
+      desc: "Certificates generated and sent  after each event.",
     },
     {
       icon: task,
@@ -39,7 +39,7 @@ const Features = () => {
     {
       icon: gallery,
       title: "Gallery Management",
-      desc: "Curated photo galleries for every event — showcase memories beautifully.",
+      desc: "Curated photo galleries for every event showcase memories beautifully.",
     },
   ];
 

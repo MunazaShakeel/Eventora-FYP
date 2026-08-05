@@ -20,18 +20,49 @@ const StudentSidebar = () => {
   const notifRef = useRef(null);
 
   const navItems = [
-    { label: "Dashboard",        path: "/student-dashboard",          icon: "dashboard" },
-    { label: "Browse Events",    path: "/student/browse-events",      icon: "event" },
-    { label: "My Registrations", path: "/student/my-registrations",   icon: "app_registration" },
-    { label: "My Tasks",         path: "/student/tasks",              icon: "task_alt" },
-    { label: "Gallery",          path: "/student/gallery",            icon: "photo_library" },
-    { label: "My Certificates",  path: "/student/certificates",       icon: "workspace_premium" },
-    { label: "My Profile",       path: "/student/profile",            icon: "account_circle" },
+    { label: "Dashboard", path: "/student-dashboard", icon: "dashboard" },
+    { label: "Browse Events", path: "/student/browse-events", icon: "event" },
+    { label: "My Registrations", path: "/student/my-registrations", icon: "app_registration" },
+    { label: "My Tasks", path: "/student/tasks", icon: "task_alt" },
+    { label: "Gallery", path: "/student/gallery", icon: "photo_library" },
+    { label: "My Certificates", path: "/student/certificates", icon: "workspace_premium" },
+    { label: "My Profile", path: "/student/profile", icon: "account_circle" },
   ];
 
   const handleLogout = () => {
     logout();
     navigate("/student-login");
+  };
+
+  // ── Notification Functions ──
+  const getIconByType = (type) => {
+    switch (type) {
+      case "event": return "event";
+      case "certificate": return "workspace_premium";
+      case "attendance": return "qr_code_scanner";
+      case "task": return "task_alt";
+      default: return "notifications";
+    }
+  };
+
+  const getColorByType = (type) => {
+    switch (type) {
+      case "event": return "#8b4fa2";
+      case "certificate": return "#FFE66D";
+      case "attendance": return "#4ECDC4";
+      case "task": return "#FF6B6B";
+      default: return "#8b4fa2";
+    }
+  };
+
+  const getBgByType = (type) => {
+    switch (type) {
+      case "event": return "#f5eefa";
+      case "certificate": return "#fff9e6";
+      case "attendance": return "#e6faf8";
+      case "task": return "#ffe6e6";
+      default: return "#f5eefa";
+    }
   };
 
   const fetchNotifications = async () => {
@@ -63,36 +94,6 @@ const StudentSidebar = () => {
     }
   };
 
-  const getIconByType = (type) => {
-    switch (type) {
-      case "event": return "event";
-      case "certificate": return "workspace_premium";
-      case "attendance": return "qr_code_scanner";
-      case "task": return "task_alt";
-      default: return "notifications";
-    }
-  };
-
-  const getColorByType = (type) => {
-    switch (type) {
-      case "event": return "#8b4fa2";
-      case "certificate": return "#FFE66D";
-      case "attendance": return "#4ECDC4";
-      case "task": return "#FF6B6B";
-      default: return "#8b4fa2";
-    }
-  };
-
-  const getBgByType = (type) => {
-    switch (type) {
-      case "event": return "#f5eefa";
-      case "certificate": return "#fff9e6";
-      case "attendance": return "#e6faf8";
-      case "task": return "#ffe6e6";
-      default: return "#f5eefa";
-    }
-  };
-
   const markAsRead = async (notificationId) => {
     if (!token) return;
     try {
@@ -108,18 +109,25 @@ const StudentSidebar = () => {
     }
   };
 
-  const markAllAsRead = async () => {
-    if (!token) return;
-    try {
-      await axios.put(`${API_URL}/notifications/read-all`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-    } catch (err) {
-      console.error("Error marking all as read:", err);
-    }
-  };
+// 🔄 REPLACE existing markAllAsRead with this:
+const markAllAsRead = async () => {
+  if (!token) return;
+  try {
+    await axios.put(`${API_URL}/notifications/read-all`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // ✅ Sab notifications ko read mark karein
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+    
+    // ✅ Force re-fetch to sync with server
+    await fetchNotifications();
+    
+  } catch (err) {
+    console.error("Error marking all as read:", err);
+  }
+};
 
   const deleteNotification = async (notificationId) => {
     if (!token) return;
@@ -135,9 +143,11 @@ const StudentSidebar = () => {
     }
   };
 
+  // ── Socket Listeners (WITH SAFE CHECK) ──
   useEffect(() => {
     if (!socket) return;
-    socket.on("new-notification", (notification) => {
+
+    const handleNewNotification = (notification) => {
       const newNotif = {
         id: notification._id,
         _id: notification._id,
@@ -153,10 +163,20 @@ const StudentSidebar = () => {
       setNotifications(prev => [newNotif, ...prev]);
       setUnreadCount(prev => prev + 1);
       showToast(notification);
-    });
-    return () => socket.off("new-notification");
+    };
+
+    if (socket && typeof socket.on === 'function') {
+      socket.on("new-notification", handleNewNotification);
+    }
+
+    return () => {
+      if (socket && typeof socket.off === 'function') {
+        socket.off("new-notification", handleNewNotification);
+      }
+    };
   }, [socket]);
 
+  // ── Toast Notification ──
   const showToast = (notification) => {
     const toast = document.createElement("div");
     toast.className = "fixed bottom-20 right-4 bg-white rounded-lg shadow-2xl p-3 max-w-sm z-50 animate-slide-up";
@@ -177,12 +197,15 @@ const StudentSidebar = () => {
     }, 4000);
   };
 
+  // ── Fetch on mount & interval ──
   useEffect(() => {
+    if (!token) return;
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [token]);
 
+  // ── Click outside to close notification dropdown ──
   useEffect(() => {
     const handleClick = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
@@ -196,7 +219,7 @@ const StudentSidebar = () => {
     <>
       {/* Logo */}
       <div className="px-8 py-6 shrink-0">
-        <Link to="/student-dashboard" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
+        <Link to="/" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
           <span className="text-5xl font-bold relative" style={{ fontFamily: "Great Vibes, cursive" }}>
             <span className="text-[#9B59B6]">Event</span>
             <span className="text-yellow-500">ora</span>
@@ -254,6 +277,7 @@ const StudentSidebar = () => {
 
       {/* ── MOBILE: Top Header Bar ── */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 shadow-sm px-4 h-14 flex items-center justify-between">
+        {/* Hamburger */}
         <button
           onClick={() => setSidebarOpen(true)}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition"
@@ -261,12 +285,13 @@ const StudentSidebar = () => {
           <span className="material-symbols-outlined text-[22px] text-gray-600">menu</span>
         </button>
 
+        {/* Logo */}
         <span className="text-2xl font-bold" style={{ fontFamily: "Great Vibes, cursive" }}>
           <span className="text-[#9B59B6]">Event</span>
           <span className="text-yellow-500">ora</span>
         </span>
 
-        {/* Notification Bell */}
+        {/* 🔔 MOBILE NOTIFICATION BELL */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotifOpen(!notifOpen)}
@@ -280,6 +305,7 @@ const StudentSidebar = () => {
             )}
           </button>
 
+          {/* Notification Dropdown */}
           {notifOpen && (
             <div className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
@@ -352,17 +378,28 @@ const StudentSidebar = () => {
       {/* ── MOBILE BOTTOM NAV ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center h-16 px-2 z-40 shadow-lg">
         {[
-          { label: "Home",    path: "/student-dashboard",        icon: "dashboard" },
-          { label: "Events",  path: "/student/browse-events",    icon: "event" },
-          { label: "Mine",    path: "/student/my-registrations", icon: "app_registration" },
-          { label: "Gallery", path: "/student/gallery",          icon: "photo_library" },
-          { label: "Profile", path: "/student/profile",          icon: "account_circle" },
+          { label: "Home", path: "/student-dashboard", icon: "dashboard" },
+          { label: "Events", path: "/student/browse-events", icon: "event" },
+          { label: "Mine", path: "/student/my-registrations", icon: "app_registration" },
+          { label: "Gallery", path: "/student/gallery", icon: "photo_library" },
+          { 
+            label: "More", 
+            path: "#", 
+            icon: "grid_view",
+            onClick: () => setSidebarOpen(true) 
+          },
         ].map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
+              key={item.path || item.label}
+              onClick={() => {
+                if (item.onClick) {
+                  item.onClick();
+                } else {
+                  navigate(item.path);
+                }
+              }}
               className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all ${isActive ? "text-[#8b4fa2]" : "text-gray-400"}`}
             >
               <span className="material-symbols-outlined text-[22px]" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
