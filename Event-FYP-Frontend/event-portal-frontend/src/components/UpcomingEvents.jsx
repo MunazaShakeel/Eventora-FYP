@@ -1,3 +1,5 @@
+// frontend/src/components/UpcomingEvents.jsx
+
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,10 +26,59 @@ const formatDate = (d) => {
   });
 };
 
+/* ================= FORMAT TIME TO 12-HOUR ================= */
+const formatTime = (timeStr) => {
+  if (!timeStr) return "";
+  const [hours, minutes] = timeStr.split(':');
+  let hour = parseInt(hours);
+  const minute = minutes || '00';
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  hour = hour ? hour : 12;
+  return `${hour}:${minute} ${ampm}`;
+};
+
+/* ================= HELPER: Check if event is upcoming (date + time) ================= */
+const isEventUpcoming = (event) => {
+  if (!event?.start_date) return false;
+  
+  const now = new Date();
+  const eventDate = new Date(event.start_date);
+  
+  if (event.start_time) {
+    const [hours, minutes] = event.start_time.split(':');
+    eventDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+  } else {
+    eventDate.setHours(23, 59, 59, 999);
+  }
+  
+  return eventDate > now;
+};
+
+/* ================= HELPER: Get event status ================= */
+const getEventStatus = (event) => {
+  if (!event?.start_date) return { label: 'Upcoming', color: '#4ECDC4' };
+  
+  const now = new Date();
+  const eventDate = new Date(event.start_date);
+  
+  if (event.start_time) {
+    const [hours, minutes] = event.start_time.split(':');
+    eventDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+  }
+  
+  if (eventDate > now) {
+    return { label: 'Upcoming', color: '#4ECDC4' };
+  } else {
+    return { label: 'Ended', color: '#ef4444' };
+  }
+};
+
 /* ================= EVENT CARD ================= */
 const EventCard = ({ event, index }) => {
   const navigate = useNavigate();
   const cat = CATEGORY_STYLES[event.category] || CATEGORY_STYLES.default;
+  const status = getEventStatus(event);
 
   const eventDate = new Date(event.start_date);
   const month = !isNaN(eventDate)
@@ -95,6 +146,17 @@ const EventCard = ({ event, index }) => {
         >
           {event.category || "Event"}
         </div>
+
+        {/* STATUS BADGE - UPCOMING/ENDED */}
+        <div
+          className="absolute bottom-3 right-3 px-3 py-1 rounded-full text-[10px] font-black text-white shadow-lg"
+          style={{ 
+            background: status.color,
+            opacity: 0.9
+          }}
+        >
+          {status.label}
+        </div>
       </div>
 
       {/* CONTENT */}
@@ -105,7 +167,9 @@ const EventCard = ({ event, index }) => {
 
         <div className="flex flex-col gap-1.5 mb-4">
           <span className="text-xs text-gray-400">📍 {event.venue || "TBA"}</span>
-          <span className="text-xs text-gray-400">📅 {formatDate(event.start_date)}</span>
+          <span className="text-xs text-gray-400">
+            📅 {formatDate(event.start_date)} {event.start_time ? `at ${formatTime(event.start_time)}` : ''}
+          </span>
 
           {event.max_participants && (
             <span className="text-xs text-gray-400">
@@ -117,15 +181,22 @@ const EventCard = ({ event, index }) => {
         <button
           className="mt-auto w-full py-2.5 rounded-2xl text-sm font-black text-white"
           style={{
-            background: "linear-gradient(135deg, #9B59B6, #6d3483)",
-            boxShadow: "0 2px 10px rgba(139,79,162,0.25)",
+            background: status.label === 'Upcoming' 
+              ? "linear-gradient(135deg, #9B59B6, #6d3483)"
+              : "linear-gradient(135deg, #9ca3af, #6b7280)",
+            boxShadow: status.label === 'Upcoming' 
+              ? "0 2px 10px rgba(139,79,162,0.25)"
+              : "none",
+            cursor: status.label === 'Upcoming' ? 'pointer' : 'not-allowed'
           }}
           onClick={(e) => {
             e.stopPropagation();
-            navigate("/student-register");
+            if (status.label === 'Upcoming') {
+              navigate("/student-register");
+            }
           }}
         >
-          Register Now
+          {status.label === 'Upcoming' ? 'Register Now' : 'Event Ended'}
         </button>
       </div>
     </div>
@@ -140,36 +211,58 @@ const UpcomingEvents = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  /* 🔥 SCROLL FIX */
-  // In your main App component or router setup
-useEffect(() => {
-  if (window.location.hash === '#upcoming-events') {
-    const element = document.getElementById('upcoming-events');
-    if (element) {
-      setTimeout(() => {
-        element.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
+  /* SCROLL FIX */
+  useEffect(() => {
+    if (window.location.hash === '#upcoming-events') {
+      const element = document.getElementById('upcoming-events');
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
     }
-  }
-}, [location]);
+  }, [location]);
 
-  /* FETCH EVENTS */
+  /* FETCH EVENTS - WITH TIME COMPARISON */
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         const res = await axios.get(`${API}/api/events`);
 
-        const allEvents =
-          res.data?.data || res.data?.events || res.data || [];
+        const allEvents = res.data?.data || res.data?.events || res.data || [];
 
         const now = new Date();
 
         const upcoming = allEvents
           .filter((e) => {
-            const d = new Date(e.start_date);
-            return e.start_date && !isNaN(d) && d >= now;
+            if (!e.start_date) return false;
+            
+            const eventDate = new Date(e.start_date);
+            
+            if (e.start_time) {
+              const [hours, minutes] = e.start_time.split(':');
+              eventDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            } else {
+              eventDate.setHours(0, 0, 0, 0);
+            }
+            
+            return eventDate > now;
           })
-          .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+          .sort((a, b) => {
+            const dateA = new Date(a.start_date);
+            const dateB = new Date(b.start_date);
+            
+            if (a.start_time) {
+              const [hA, mA] = a.start_time.split(':');
+              dateA.setHours(parseInt(hA), parseInt(mA), 0, 0);
+            }
+            if (b.start_time) {
+              const [hB, mB] = b.start_time.split(':');
+              dateB.setHours(parseInt(hB), parseInt(mB), 0, 0);
+            }
+            
+            return dateA - dateB;
+          })
           .slice(0, 6);
 
         setEvents(upcoming);
@@ -218,9 +311,14 @@ useEffect(() => {
 
         {/* CONTENT */}
         {loading ? (
-          <p>Loading...</p>
+          <div className="flex justify-center py-12">
+            <div className="w-12 h-12 border-4 border-[#9B59B6] border-t-transparent rounded-full animate-spin"></div>
+          </div>
         ) : events.length === 0 ? (
-          <p>No upcoming events</p>
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-lg font-semibold">No upcoming events</p>
+            <p className="text-sm mt-1">Check back later for new events</p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event, i) => (

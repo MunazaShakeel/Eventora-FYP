@@ -7,8 +7,8 @@ import { useNavigate } from "react-router-dom";
 const API = "http://localhost:5000";
 
 const MyRegistrations = () => {
-const { token, user } = useAuth();
-const navigate = useNavigate();
+  const { token, user } = useAuth();
+  const navigate = useNavigate();
 
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,9 +24,18 @@ const navigate = useNavigate();
   const [qrModal, setQrModal] = useState(null);
   const [cancelModal, setCancelModal] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
+  
+  // ── TOAST STATE ──
+  const [toast, setToast] = useState(null);
+
+  // ── TOAST FUNCTION ──
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   useEffect(() => {
-      if (!token) return;
+    if (!token) return;
     fetchRegistrations();
   }, [token]);
 
@@ -41,6 +50,7 @@ const navigate = useNavigate();
     } catch (err) {
       console.error(err);
       setError("Failed to load registrations.");
+      showToast("Failed to load registrations", "error");
     } finally {
       setLoading(false);
     }
@@ -129,6 +139,7 @@ const navigate = useNavigate();
     });
   };
 
+  // ── HANDLE FEEDBACK SUBMIT ──
   const handleFeedbackSubmit = async () => {
     if (!feedbackText.trim()) return;
     try {
@@ -141,14 +152,16 @@ const navigate = useNavigate();
       setFeedbackModal(null);
       setFeedbackText("");
       setFeedbackRating(5);
-     
+      showToast("✅ Feedback submitted successfully!", "success");
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to submit feedback.");
+      const msg = err?.response?.data?.message || "Failed to submit feedback.";
+      showToast(msg, "error");
     } finally {
       setSubmittingFeedback(false);
     }
   };
 
+  // ── HANDLE CANCEL REGISTRATION ──
   const handleCancelRegistration = async () => {
     if (!cancelModal) return;
     try {
@@ -158,8 +171,10 @@ const navigate = useNavigate();
       });
       setRegistrations((prev) => prev.filter((r) => r._id !== cancelModal.regId));
       setCancelModal(null);
+      showToast(`✅ Registration cancelled for "${cancelModal.eventTitle}"`, "success");
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to cancel registration.");
+      const msg = err?.response?.data?.message || "Failed to cancel registration.";
+      showToast(msg, "error");
     } finally {
       setCancellingId(null);
     }
@@ -171,186 +186,240 @@ const navigate = useNavigate();
     link.download = `QR-${eventTitle.replace(/\s+/g, '-')}.png`;
     link.href = qrCode;
     link.click();
+    showToast("✅ QR Code downloaded!", "success");
   };
 
   const handlePrintQR = (qrCode, eventTitle, studentName, studentEmail, eventDate, eventVenue, registrationId) => {
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>QR Code - ${eventTitle}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>QR Code - ${eventTitle}</title>
+        <style>
+          * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+          }
+          body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f7f4fb;
+            padding: 20px;
+            margin: 0;
+          }
+          .qr-container {
+            background: white;
+            padding: 35px 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+            text-align: center;
+            max-width: 480px;
+            width: 100%;
+            border: 1px solid #f0ecf5;
+            margin: auto;
+          }
+          .qr-container .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 6px;
+          }
+          .qr-container .header .badge {
+            background: #FFE66D;
+            color: #1A1A1A;
+            font-size: 10px;
+            font-weight: 900;
+            padding: 4px 16px;
+            border-radius: 20px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+          }
+          .qr-container h2 {
+            color: #1A1A1A;
+            font-size: 22px;
+            font-weight: 800;
+            margin: 4px 0 2px 0;
+          }
+          .qr-container .subtitle {
+            color: #8b4fa2;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 14px;
+          }
+          .qr-container .divider {
+            height: 2px;
+            background: linear-gradient(90deg, #9B59B6, #4ECDC4);
+            margin: 14px 0 16px 0;
+            border-radius: 2px;
+          }
+          .qr-container .qr-code-wrapper {
+            background: #f7f4fb;
+            border-radius: 16px;
+            display: inline-block;
+            padding: 10px;
+            margin: 6px 0 14px 0;
+          }
+          .qr-container img {
+            width: 190px;
+            height: 190px;
+            border-radius: 12px;
+            display: block;
+          }
+          .qr-container .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 16px;
+            text-align: left;
+            margin: 12px 0 14px 0;
+            background: #faf8fc;
+            padding: 14px 18px;
+            border-radius: 14px;
+          }
+          .qr-container .info-grid .label {
+            font-size: 9px;
+            font-weight: 700;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .qr-container .info-grid .value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1A1A1A;
+          }
+          .qr-container .info-grid .full-width {
+            grid-column: 1 / -1;
+          }
+          .qr-container .footer-note {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+          }
+          .qr-container .footer-note span {
+            font-size: 16px;
+          }
+          .qr-container .generated {
+            font-size: 9px;
+            color: #d1d5db;
+            margin-top: 8px;
+          }
+          
+          @media print {
             body {
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              min-height: 100vh;
-              font-family: 'Segoe UI', Arial, sans-serif;
-              background: #f7f4fb;
-              padding: 20px;
+              background: white !important;
+              padding: 10px !important;
+              min-height: 100vh !important;
+              display: flex !important;
+              justify-content: center !important;
+              align-items: center !important;
             }
             .qr-container {
-              background: white;
-              padding: 40px 45px;
-              border-radius: 24px;
-              box-shadow: 0 20px 60px rgba(0,0,0,0.12);
-              text-align: center;
-              max-width: 450px;
-              width: 100%;
-              border: 1px solid #f0ecf5;
-            }
-            .qr-container .header {
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 10px;
-              margin-bottom: 8px;
-            }
-            .qr-container .header .badge {
-              background: #FFE66D;
-              color: #1A1A1A;
-              font-size: 10px;
-              font-weight: 900;
-              padding: 4px 14px;
-              border-radius: 20px;
-              letter-spacing: 1px;
-              text-transform: uppercase;
-            }
-            .qr-container h2 {
-              color: #1A1A1A;
-              font-size: 22px;
-              font-weight: 800;
-              margin-bottom: 4px;
-            }
-            .qr-container .subtitle {
-              color: #8b4fa2;
-              font-size: 14px;
-              font-weight: 600;
-              margin-bottom: 16px;
-            }
-            .qr-container .divider {
-              height: 2px;
-              background: linear-gradient(90deg, #9B59B6, #4ECDC4);
-              margin: 16px 0 18px 0;
-              border-radius: 2px;
-            }
-            .qr-container img {
-              width: 200px;
-              height: 200px;
-              margin: 10px 0 16px 0;
-              border-radius: 16px;
-              background: #f7f4fb;
-              padding: 8px;
-            }
-            .qr-container .info-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 8px 16px;
-              text-align: left;
-              margin: 12px 0 16px 0;
-              background: #faf8fc;
-              padding: 14px 18px;
-              border-radius: 14px;
-            }
-            .qr-container .info-grid .label {
-              font-size: 10px;
-              font-weight: 700;
-              color: #9ca3af;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-            }
-            .qr-container .info-grid .value {
-              font-size: 13px;
-              font-weight: 600;
-              color: #1A1A1A;
-            }
-            .qr-container .info-grid .full-width {
-              grid-column: 1 / -1;
+              box-shadow: none !important;
+              border: 1px solid #e5e7eb !important;
+              padding: 30px 35px !important;
+              margin: auto !important;
+              max-width: 460px !important;
             }
             .qr-container .footer-note {
-              font-size: 12px;
-              color: #6b7280;
-              margin-top: 12px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 6px;
+              color: #9ca3af !important;
             }
-            .qr-container .footer-note span {
-              font-size: 16px;
+            .qr-container img {
+              width: 180px !important;
+              height: 180px !important;
             }
-            .qr-container .generated {
-              font-size: 10px;
-              color: #d1d5db;
-              margin-top: 10px;
+          }
+          
+          @media print and (max-height: 800px) {
+            .qr-container {
+              padding: 20px 25px !important;
+            }
+            .qr-container img {
+              width: 150px !important;
+              height: 150px !important;
+            }
+            .qr-container .info-grid {
+              padding: 10px 14px !important;
+              margin: 8px 0 10px 0 !important;
             }
             .qr-container .qr-code-wrapper {
-              background: #f7f4fb;
-              border-radius: 16px;
-              display: inline-block;
-              padding: 8px;
+              padding: 6px !important;
+              margin: 4px 0 10px 0 !important;
             }
-            @media print {
-              body { background: white; padding: 10px; }
-              .qr-container { box-shadow: none; border: 1px solid #e5e7eb; }
-              .qr-container .footer-note { color: #9ca3af; }
+            .qr-container h2 {
+              font-size: 18px !important;
             }
-          </style>
-        </head>
-        <body>
-          <div class="qr-container">
-            <div class="header">
-              <span class="badge">🎫 Student Pass</span>
+            .qr-container .subtitle {
+              font-size: 12px !important;
+              margin-bottom: 10px !important;
+            }
+            .qr-container .divider {
+              margin: 8px 0 10px 0 !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="qr-container">
+          <div class="header">
+            <span class="badge">🎫 Student Pass</span>
+          </div>
+          <h2>${eventTitle}</h2>
+          <p class="subtitle">✦ Event Entry QR Code ✦</p>
+          
+          <div class="divider"></div>
+          
+          <div class="qr-code-wrapper">
+            <img src="${qrCode}" alt="QR Code" />
+          </div>
+          
+          <div class="info-grid">
+            <div class="full-width">
+              <div class="label">👤 Student</div>
+              <div class="value">${studentName || 'N/A'}</div>
             </div>
-            <h2>${eventTitle}</h2>
-            <p class="subtitle">✦ Event Entry QR Code ✦</p>
-            
-            <div class="divider"></div>
-            
-            <div class="qr-code-wrapper">
-              <img src="${qrCode}" alt="QR Code" />
+            <div class="full-width">
+              <div class="label">📧 Email</div>
+              <div class="value">${studentEmail || 'N/A'}</div>
             </div>
-            
-            <div class="info-grid">
-              <div class="full-width">
-                <div class="label">👤 Student</div>
-                <div class="value">${studentName || 'N/A'}</div>
-              </div>
-              <div class="full-width">
-                <div class="label">📧 Email</div>
-                <div class="value">${studentEmail || 'N/A'}</div>
-              </div>
-              <div>
-                <div class="label">📅 Date</div>
-                <div class="value">${eventDate || 'TBA'}</div>
-              </div>
-              <div>
-                <div class="label">📍 Venue</div>
-                <div class="value">${eventVenue || 'TBA'}</div>
-              </div>
-              <div class="full-width">
-                <div class="label">🆔 Registration ID</div>
-                <div class="value" style="font-size:11px; font-family:monospace; color:#6b7280;">${registrationId || 'N/A'}</div>
-              </div>
+            <div>
+              <div class="label">📅 Date</div>
+              <div class="value">${eventDate || 'TBA'}</div>
             </div>
-            
-            <div class="footer-note">
-              <span>📌</span> Show this QR code at the event entrance for check-in
+            <div>
+              <div class="label">📍 Venue</div>
+              <div class="value">${eventVenue || 'TBA'}</div>
             </div>
-            <div class="generated">
-              Generated on ${new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            <div class="full-width">
+              <div class="label">🆔 Registration ID</div>
+              <div class="value" style="font-size:11px; font-family:monospace; color:#6b7280;">${registrationId || 'N/A'}</div>
             </div>
           </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 500);
-  };
+          
+          <div class="footer-note">
+            <span>📌</span> Show this QR code at the event entrance for check-in
+          </div>
+          <div class="generated">
+            Generated on ${new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
+};
 
   const tabs = [
     { key: "all", label: "All", icon: "grid_view", count: registrations.length },
@@ -406,6 +475,39 @@ const navigate = useNavigate();
       <StudentSidebar />
 
       <main className="flex-1 md:ml-64 pb-24 md:pb-6">
+        {/* ── TOAST NOTIFICATION ── */}
+    {/* ── TOAST NOTIFICATION ── */}
+{toast && (
+  <div 
+    className={`fixed top-24 right-6 z-9999 px-5 py-3.5 rounded-xl text-white text-sm font-semibold shadow-2xl transition-all duration-300 flex items-center gap-3 ${
+      toast.type === "success" 
+        ? "bg-linear-to-r from-green-500 to-green-600" 
+        : toast.type === "error" 
+        ? "bg-linear-to-r from-red-500 to-red-600" 
+        : "bg-linear-to-r from-gray-600 to-gray-700"
+    }`}
+    style={{
+      boxShadow: "0 20px 60px rgba(0,0,0,0.35), 0 0 40px rgba(0,0,0,0.1)",
+      minWidth: "300px",
+      maxWidth: "450px",
+      animation: "slideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+      backdropFilter: "blur(4px)",
+      border: "1px solid rgba(255,255,255,0.15)"
+    }}
+  >
+    <span className="material-symbols-outlined text-2xl">
+      {toast.type === "success" ? "check_circle" : toast.type === "error" ? "error" : "info"}
+    </span>
+    <span className="flex-1 font-medium">{toast.msg}</span>
+    <button 
+      onClick={() => setToast(null)}
+      className="text-white/60 hover:text-white transition-all hover:scale-110 ml-1"
+    >
+      <span className="material-symbols-outlined text-lg">close</span>
+    </button>
+  </div>
+)}
+
         {/* ── HEADER BANNER ── */}
         <div
           className="relative overflow-hidden px-5 pt-5 pb-8"
@@ -1022,7 +1124,7 @@ const navigate = useNavigate();
                 {cancellingId ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Cancelling...
+                      Cancelling...
                   </span>
                 ) : (
                   "Yes, Cancel"

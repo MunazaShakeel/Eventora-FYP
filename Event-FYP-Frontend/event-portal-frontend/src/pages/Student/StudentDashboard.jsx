@@ -190,9 +190,15 @@ const NotificationBell = ({
                     <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">{n.message}</p>
                     <p className="text-[10px] text-gray-400 mt-1">{formatTime(n.time)}</p>
                   </div>
-                  {!n.isRead && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#8b4fa2] shrink-0 mt-1" />
-                  )}
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      onDelete(n._id); 
+                    }} 
+                    className="text-gray-300 hover:text-red-400 transition p-1"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
                 </div>
               ))}
             </div>
@@ -248,7 +254,6 @@ const EventHoverCard = ({ event, position }) => {
         )}
       </div>
       
-      {/* Hover Card */}
       {show && (
         <div className="absolute z-50 bottom-full left-0 mb-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 transition-all duration-200 animate-fadeInUp">
           <div className="flex items-start gap-3">
@@ -307,7 +312,7 @@ const StudentDashboard = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
 
-  // ── Notification Functions ──
+  // ── Notification Helper Functions ──
   const getIconByType = (type) => {
     switch (type) {
       case 'event': return 'event';
@@ -338,6 +343,7 @@ const StudentDashboard = () => {
     }
   };
 
+  // ── Fetch Notifications ──
   const fetchNotifications = async () => {
     if (!token) return;
     setLoadingNotifs(true);
@@ -367,6 +373,7 @@ const StudentDashboard = () => {
     }
   };
 
+  // ── Mark Single Notification as Read ──
   const markAsRead = async (notificationId) => {
     if (!token) return;
     try {
@@ -382,38 +389,44 @@ const StudentDashboard = () => {
     }
   };
 
-  // 🔄 REPLACE existing markAllAsRead with this:
-const markAllAsRead = async () => {
-  if (!token) return;
-  try {
-    await axios.put(`${API_URL}/notifications/read-all`, {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    // ✅ Sab notifications ko read mark karein
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    setUnreadCount(0);
-    
-    // ✅ Force re-fetch to sync with server
-    await fetchNotifications();
-    
-  } catch (err) {
-    console.error("Error marking all as read:", err);
-  }
-};
+  // ── Mark All as Read ──
+  const markAllAsRead = async () => {
+    if (!token) return;
+    try {
+      await axios.put(`${API_URL}/notifications/read-all`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      setNotifOpen(false);  // 🔥 Dropdown band karo
+      
+    } catch (err) {
+      console.error("Error marking all as read:", err);
+    }
+  };
 
+  // ── Delete Notification ──
   const deleteNotification = async (notificationId) => {
     if (!token) return;
     try {
       await axios.delete(`${API_URL}/notifications/${notificationId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      const deleted = notifications.find(n => n._id === notificationId);
       setNotifications(prev => prev.filter(n => n._id !== notificationId));
+      if (!deleted?.isRead) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
     } catch (err) {
       console.error("Error deleting notification:", err);
     }
   };
 
+  // ── handleNotificationToggle ──
+ const handleNotificationToggle = () => {
+  setNotifOpen(!notifOpen);
+};
   // ── Socket Listeners ──
   useEffect(() => {
     if (!socket) return;
@@ -464,7 +477,7 @@ const markAllAsRead = async () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ── Notifications Fetch ──
+  // ── Notifications Fetch Interval ──
   useEffect(() => {
     if (!token) return;
     fetchNotifications();
@@ -481,7 +494,7 @@ const markAllAsRead = async () => {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // ── Fetch Data ──
+  // ── Fetch Dashboard Data ──
   useEffect(() => {
     if (!token || !user) return;
 
@@ -536,7 +549,7 @@ const markAllAsRead = async () => {
     fetchData();
   }, [token, user]);
 
-  // Process Data after fetch
+  // ── Process Data after fetch ──
   useEffect(() => {
     if (myRegistrations.length > 0) {
       const now = new Date();
@@ -739,12 +752,7 @@ const markAllAsRead = async () => {
                   unreadCount={unreadCount}
                   loadingNotifs={loadingNotifs}
                   isOpen={notifOpen}
-                  onToggle={() => {
-                    setNotifOpen(!notifOpen);
-                    if (!notifOpen && unreadCount > 0) {
-                      markAllAsRead();
-                    }
-                  }}
+                  onToggle={handleNotificationToggle}
                   onMarkRead={markAsRead}
                   onMarkAllRead={markAllAsRead}
                   onDelete={deleteNotification}

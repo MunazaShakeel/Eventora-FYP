@@ -1,3 +1,5 @@
+// frontend/src/pages/admin/ManageFeedbacks.jsx
+
 import React, { useEffect, useState } from "react";
 import AdminSidebar from "../../components/AdminSidebar";
 import axios from "axios";
@@ -59,140 +61,144 @@ const ManageFeedbacks = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    fetchAll();
-    fetchEvents();
-  }, []);
-
-  // ── Fetch Events for Filter ──
- const fetchEvents = async () => {
-  if (!token) return;
-  try {
-    const res = await axios.get(`${API_URL}/events/all`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  // ── FETCH EVENTS ──
+  const fetchEvents = async () => {
+    if (!token) {
+      console.log("No token, skipping fetchEvents");
+      return;
+    }
     
-    let list = Array.isArray(res.data)
-      ? res.data
-      : Array.isArray(res.data?.events)
-      ? res.data.events
-      : Array.isArray(res.data?.data)
-      ? res.data.data
-      : [];
-    
-    // ✅ FILTER: Sirf approved events
-    list = list.filter(event => event.approved === true);
-    
-    setEvents(list);
-  } catch (err) {
-    console.error("Failed to fetch events:", err);
     try {
-      const res2 = await axios.get(`${API_URL}/events`, {
+      const res = await axios.get(`${API_URL}/events/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-    
-      let list2 = Array.isArray(res2.data)
-        ? res2.data
-        : Array.isArray(res2.data?.data)
-        ? res2.data.data
+      
+      let list = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.events)
+        ? res.data.events
+        : Array.isArray(res.data?.data)
+        ? res.data.data
         : [];
       
-      // ✅ FILTER: Sirf approved events
-      list2 = list2.filter(event => event.approved === true);
+      list = list.filter(event => event.approved === true);
+      setEvents(list);
+    } catch (err) {
+      console.error("Failed to fetch events:", err);
+      try {
+        const res2 = await axios.get(`${API_URL}/events`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
       
-      setEvents(list2);
-    } catch (err2) {
-      console.error("Fallback fetch events also failed:", err2);
+        let list2 = Array.isArray(res2.data)
+          ? res2.data
+          : Array.isArray(res2.data?.data)
+          ? res2.data.data
+          : [];
+        
+        list2 = list2.filter(event => event.approved === true);
+        setEvents(list2);
+      } catch (err2) {
+        console.error("Fallback fetch events also failed:", err2);
+      }
     }
-  }
-};
+  };
+
+  // ── FETCH ALL DATA ──
   const fetchAll = async () => {
-  if (!token) {
-    setError("Authentication token not found. Please login again.");
-    setLoading(false);
-    return;
-  }
+    if (!token) {
+      setError("Authentication token not found. Please login again.");
+      setLoading(false);
+      return;
+    }
 
-  try {
-    setLoading(true);
-    setError("");
-    setIsRefreshing(true);
+    try {
+      setLoading(true);
+      setError("");
+      setIsRefreshing(true);
 
-    const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: `Bearer ${token}` };
 
-    // 1️⃣ Feedback fetch karein
-    const feedbacksRes = await axios.get(`${API_URL}/feedbacks/admin/all`, {
-      headers,
-    });
+      // 1️⃣ Feedback fetch
+      const feedbacksRes = await axios.get(`${API_URL}/feedbacks/admin/all`, {
+        headers,
+      });
 
-    // 2️⃣ Top rated events fetch karein
-    const topEventsRes = await axios.get(`${API_URL}/feedbacks/top-rated`, {
-      headers,
-    });
+      // 2️⃣ Top rated events fetch
+      const topEventsRes = await axios.get(`${API_URL}/feedbacks/top-rated`, {
+        headers,
+      });
 
-    // 3️⃣ Events list fetch karein (approved wali)
-    const eventsRes = await axios.get(`${API_URL}/events/all`, {
-      headers,
-    });
-    
-    let allEvents = Array.isArray(eventsRes.data)
-      ? eventsRes.data
-      : Array.isArray(eventsRes.data?.events)
-      ? eventsRes.data.events
-      : Array.isArray(eventsRes.data?.data)
-      ? eventsRes.data.data
-      : [];
-    
-    // ✅ Sirf approved events
-    const approvedEvents = allEvents.filter(e => e.approved === true);
-    setEvents(approvedEvents);
+      // 3️⃣ Events list fetch
+      const eventsRes = await axios.get(`${API_URL}/events/all`, {
+        headers,
+      });
+      
+      let allEvents = Array.isArray(eventsRes.data)
+        ? eventsRes.data
+        : Array.isArray(eventsRes.data?.events)
+        ? eventsRes.data.events
+        : Array.isArray(eventsRes.data?.data)
+        ? eventsRes.data.data
+        : [];
+      
+      const approvedEvents = allEvents.filter(e => e.approved === true);
+      setEvents(approvedEvents);
 
-    // ✅ Feedbacks set karein
-    if (feedbacksRes.data?.success) {
-      setFeedbacks(feedbacksRes.data.data || []);
-    } else {
+      if (feedbacksRes.data?.success) {
+        setFeedbacks(feedbacksRes.data.data || []);
+      } else {
+        setFeedbacks([]);
+        setError(feedbacksRes.data?.message || "Failed to load feedbacks");
+      }
+
+      let topEventsData = [];
+      if (Array.isArray(topEventsRes.data)) {
+        topEventsData = topEventsRes.data;
+      } else if (topEventsRes.data?.data) {
+        topEventsData = topEventsRes.data.data;
+      } else {
+        topEventsData = [];
+      }
+      
+      const approvedTopEvents = topEventsData.filter(topEvent => {
+        return approvedEvents.some(e => e._id === topEvent._id || e._id === topEvent.event_id);
+      });
+      
+      setTopEvents(approvedTopEvents);
+
+    } catch (err) {
+      console.error("Fetch error:", err);
+      
+      if (err.response?.status === 401) {
+        setError("Session expired. Please login again.");
+        showToast("Session expired. Please login again.", "error");
+      } else if (err.response?.status === 404) {
+        setError("API endpoint not found. Please check server configuration.");
+        showToast("API endpoint not found", "error");
+      } else {
+        setError(err?.response?.data?.message || "Failed to load feedbacks.");
+        showToast("Failed to load feedbacks", "error");
+      }
+      
       setFeedbacks([]);
-      setError(feedbacksRes.data?.message || "Failed to load feedbacks");
+      setTopEvents([]);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
     }
+  };
 
-    // ✅ Top Events set karein (sirf approved)
-    let topEventsData = [];
-    if (Array.isArray(topEventsRes.data)) {
-      topEventsData = topEventsRes.data;
-    } else if (topEventsRes.data?.data) {
-      topEventsData = topEventsRes.data.data;
-    } else {
-      topEventsData = [];
+  // ── ✅ FIX: useEffect with token dependency ──
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      setError("Please login to view feedbacks.");
+      return;
     }
-    
-    // 🔥 Sirf approved events ko top-rated mein include karein
-    const approvedTopEvents = topEventsData.filter(topEvent => {
-      return approvedEvents.some(e => e._id === topEvent._id || e._id === topEvent.event_id);
-    });
-    
-    setTopEvents(approvedTopEvents);
+    fetchAll();
+  }, [token]); // ✅ token dependency added
 
-  } catch (err) {
-    console.error("Fetch error:", err);
-    
-    if (err.response?.status === 401) {
-      setError("Session expired. Please login again.");
-      showToast("Session expired. Please login again.", "error");
-    } else if (err.response?.status === 404) {
-      setError("API endpoint not found. Please check server configuration.");
-      showToast("API endpoint not found", "error");
-    } else {
-      setError(err?.response?.data?.message || "Failed to load feedbacks.");
-      showToast("Failed to load feedbacks", "error");
-    }
-    
-    setFeedbacks([]);
-    setTopEvents([]);
-  } finally {
-    setLoading(false);
-    setIsRefreshing(false);
-  }
-};
   const handleDelete = async (id) => {
     if (!token) {
       showToast("Please login again", "error");
@@ -246,7 +252,6 @@ const ManageFeedbacks = () => {
     );
   };
 
-  // ── Enhanced Filter Function ──
   const getFilteredFeedbacks = () => {
     let filtered = [...feedbacks];
 
@@ -287,6 +292,7 @@ const ManageFeedbacks = () => {
     count: feedbacks.filter((f) => Math.round(f.rating || 0) === r).length,
   }));
 
+  // ── LOADING STATE ──
   if (loading) {
     return (
       <div className="flex min-h-screen" style={{ background: COLORS.paper }}>
@@ -306,6 +312,7 @@ const ManageFeedbacks = () => {
     );
   }
 
+  // ── MAIN RENDER ──
   return (
     <div className="flex min-h-screen" style={{ background: COLORS.paper }}>
       <AdminSidebar />
@@ -319,7 +326,6 @@ const ManageFeedbacks = () => {
           <div className="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 rounded-full bg-[#FFE66D] text-[#1A1A1A] text-xs font-black tracking-widest uppercase">
-              
                 Admin Portal
               </div>
               <h1 className="text-4xl font-black text-white leading-tight tracking-tight">
@@ -627,7 +633,6 @@ const ManageFeedbacks = () => {
             </div>
           ) : (
             <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-gray-100 overflow-x-auto">
-              {/* Table - Using fixed grid template to prevent overlap */}
               <div className="min-w-225">
                 {/* Table Header */}
                 <div 
@@ -680,7 +685,7 @@ const ManageFeedbacks = () => {
                         </span>
                       </div>
 
-                      {/* Rating - FIXED OVERLAP */}
+                      {/* Rating */}
                       <div className="flex items-center">
                         <div className="flex items-center gap-0.5 whitespace-nowrap">
                           {[1, 2, 3, 4, 5].map((star) => (
@@ -696,7 +701,7 @@ const ManageFeedbacks = () => {
                         </div>
                       </div>
 
-                      {/* Date - FIXED OVERLAP */}
+                      {/* Date */}
                       <div className="flex items-center">
                         <span className="text-xs text-gray-500 whitespace-nowrap">
                           {formatDate(feedback.createdAt || feedback.submitted_at)}

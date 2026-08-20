@@ -20,7 +20,7 @@ const StudentGallery = () => {
     catch { return []; }
   });
   const [toast, setToast] = useState(null);
-  const [shareModal, setShareModal] = useState(null);
+ 
 
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
@@ -139,13 +139,7 @@ const StudentGallery = () => {
     } catch { showToast('Download failed', 'error'); }
   };
 
-  const openShare = (e, item) => { e.stopPropagation(); setShareModal(item); };
-  const copyLink = () => { navigator.clipboard.writeText(`${BASE_URL}${shareModal.media_url}`); showToast('🔗 Link copied!'); setShareModal(null); };
-  const shareNative = () => {
-    if (navigator.share) navigator.share({ title: 'Campus Memory', url: `${BASE_URL}${shareModal.media_url}` });
-    else copyLink();
-    setShareModal(null);
-  };
+
 
   const gradientPairs = [
     'from-purple-600 to-pink-500', 'from-teal-600 to-emerald-500', 'from-orange-600 to-red-500',
@@ -473,9 +467,7 @@ const StudentGallery = () => {
                       <button onClick={e => downloadItem(e, item)} className="sg-icon-btn w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center hover:scale-110 transition">
                         <span className="material-symbols-outlined text-[0.6rem] sm:text-sm text-purple-600">download</span>
                       </button>
-                      <button onClick={e => openShare(e, item)} className="sg-icon-btn w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center hover:scale-110 transition">
-                        <span className="material-symbols-outlined text-[0.6rem] sm:text-sm text-purple-600">share</span>
-                      </button>
+                      
                     </div>
                     <div className="sg-info-strip absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/70 to-transparent px-1.5 sm:px-3 pb-1 sm:pb-2 pt-4 sm:pt-8 opacity-0 transition-opacity duration-200">
                       <span className={`inline-block text-white text-[0.4rem] sm:text-[0.58rem] font-extrabold uppercase rounded-full px-1 sm:px-2 py-0.5 ${item.media_type === 'Video' ? 'bg-teal-500/90' : 'bg-purple-500/90'}`}>
@@ -493,24 +485,19 @@ const StudentGallery = () => {
         </main>
 
         {/* LIGHTBOX + SHARE MODAL + TOAST */}
-        <LightboxModal
-          lightbox={lightbox}
-          lightboxIndex={lightboxIndex}
-          filteredMedia={filteredMedia}
-          savedItems={savedItems}
-          toast={toast}
-          shareModal={shareModal}
-          onClose={closeLightbox}
-          onPrev={prevMedia}
-          onNext={nextMedia}
-          onSave={toggleSave}
-          onDownload={downloadItem}
-          onShare={openShare}
-          onShareClose={() => setShareModal(null)}
-          onCopyLink={copyLink}
-          onShareNative={shareNative}
-          BASE_URL={BASE_URL}
-        />
+ <LightboxModal
+  lightbox={lightbox}
+  lightboxIndex={lightboxIndex}
+  filteredMedia={filteredMedia}
+  savedItems={savedItems}
+  toast={toast}
+  onClose={closeLightbox}
+  onPrev={prevMedia}
+  onNext={nextMedia}
+  onSave={toggleSave}
+  onDownload={downloadItem}
+  BASE_URL={BASE_URL}
+/>
       </div>
     </>
   );

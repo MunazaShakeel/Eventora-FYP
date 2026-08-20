@@ -201,14 +201,14 @@ const AttendanceReports = () => {
             <div className="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
               <div>
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 rounded-full bg-[#FFE66D] text-[#1A1A1A] text-xs font-black tracking-widest uppercase shadow-lg">
-                  <Sparkles size={14} />
+                 
                   Admin Portal
                 </div>
                 <h1 className="text-4xl font-black text-white leading-tight tracking-tight">
-                  Attendance <span className="text-[#FFE66D]">Reports</span>
+                  Attendance Reports
                 </h1>
                 <p className="text-purple-200 text-sm mt-1 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#FFE66D] animate-pulse" />
+             
                   Preview and generate attendance reports for events
                 </p>
               </div>
@@ -244,6 +244,7 @@ const AttendanceReports = () => {
               style={{
                 boxShadow: "0 4px 24px rgba(155,89,182,0.09)",
                 border: "1px solid rgba(155,89,182,0.08)"
+              
               }}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">

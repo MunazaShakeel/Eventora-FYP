@@ -14,10 +14,12 @@ exports.registerStudent = async (req, res) => {
             return res.status(400).json({ message: 'Email already registered' });
         }
 
-        // Check if phone already exists
-        const existingPhone = await Student.findOne({ phone });
-        if (existingPhone) {
-            return res.status(400).json({ message: 'Phone number already registered' });
+        // ✅ FIX: Phone check ONLY if phone is provided
+        if (phone && phone.trim()) {
+            const existingPhone = await Student.findOne({ phone });
+            if (existingPhone) {
+                return res.status(400).json({ message: 'Phone number already registered' });
+            }
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -25,7 +27,7 @@ exports.registerStudent = async (req, res) => {
         const student = await Student.create({
             name,
             email,
-            phone,
+            phone: phone || null,  // Empty phone ko null set karein
             grade,
             semester,
             password: hashedPassword

@@ -17,8 +17,9 @@ const StudentTasks = () => {
   const [selectedStatus, setSelectedStatus] = useState("");
 
   useEffect(() => {
+    if (!token) return;
     fetchMyTasks();
-  }, []);
+  }, [token]);
 
   const fetchMyTasks = async () => {
     try {

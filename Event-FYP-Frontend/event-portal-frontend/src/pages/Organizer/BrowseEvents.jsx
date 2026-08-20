@@ -21,6 +21,23 @@ const BrowseEvents = () => {
   const [sortBy, setSortBy] = useState("newest");
   const [viewMode, setViewMode] = useState("grid");
 
+
+
+  // Helper function 
+const isEventUpcoming = (event) => {
+  if (!event?.start_date) return false;
+  
+  const now = new Date();
+  const eventDate = new Date(event.start_date);
+  
+  if (event.start_time) {
+    const [hours, minutes] = event.start_time.split(':');
+    eventDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+  }
+  
+  return eventDate > now;
+};
+
   // Format time with AM/PM
   const formatTimeWithAMPM = (timeStr) => {
     if (!timeStr) return "TBA";
@@ -274,7 +291,7 @@ const BrowseEvents = () => {
                       const registered = isRegistered(event._id);
                       const isRegistering = registeringId === event._id;
                       const catStyle = getCategoryColor(event.category);
-                      const isPast = new Date(event.start_date) < new Date();
+                    const isPast = !isEventUpcoming(event);
                       const daysLeft = getDaysRemaining(event.start_date);
 
                       return (
@@ -373,7 +390,7 @@ const BrowseEvents = () => {
                     {filteredEvents.map((event) => {
                       const registered = isRegistered(event._id);
                       const catStyle = getCategoryColor(event.category);
-                      const isPast = new Date(event.start_date) < new Date();
+                     const isPast = !isEventUpcoming(event)
 
                       return (
                         <div
@@ -516,7 +533,7 @@ const BrowseEvents = () => {
               <div className="pt-4 border-t border-gray-100">
                 {(() => {
                   const registered = isRegistered(selectedEvent._id);
-                  const isPast = new Date(selectedEvent.start_date) < new Date();
+                 const isPast = !isEventUpcoming(selectedEvent);
                   return (
                     <button
                       onClick={(e) => { if (!registered && !isPast) { setSelectedEvent(null); openRoleModal(e, selectedEvent._id); } }}

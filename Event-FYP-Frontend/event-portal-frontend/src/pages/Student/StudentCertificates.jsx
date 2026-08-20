@@ -118,7 +118,7 @@ export default function StudentCertificates() {
       case 'Runner Up':
         return '🥈 Runner Up';
       default:
-        return '📜 Participation';
+        return '🎖️ Participation';
     }
   };
 

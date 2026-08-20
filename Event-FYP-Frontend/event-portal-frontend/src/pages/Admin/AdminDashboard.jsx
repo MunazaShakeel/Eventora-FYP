@@ -319,8 +319,8 @@ const AdminDashboard = () => {
       console.error("Error marking as read:", err);
     }
   };
+  
 
- // 🔄 REPLACE existing markAllAsRead with this:
 const markAllAsRead = async () => {
   if (!token) return;
   try {
@@ -328,12 +328,8 @@ const markAllAsRead = async () => {
       headers: { Authorization: `Bearer ${token}` }
     });
     
-    // ✅ Sab notifications ko read mark karein
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     setUnreadCount(0);
-    
-    // ✅ Force re-fetch to sync with server
-    await fetchNotifications();
     
   } catch (err) {
     console.error("Error marking all as read:", err);
@@ -689,11 +685,8 @@ const markAllAsRead = async () => {
                   loadingNotifs={loadingNotifs}
                   isOpen={notifOpen}
                   onToggle={() => {
-                    setNotifOpen(!notifOpen);
-                    if (!notifOpen && unreadCount > 0) {
-                      markAllAsRead();
-                    }
-                  }}
+  setNotifOpen(!notifOpen);
+}}
                   onMarkRead={markAsRead}
                   onMarkAllRead={markAllAsRead}
                   onDelete={deleteNotification}

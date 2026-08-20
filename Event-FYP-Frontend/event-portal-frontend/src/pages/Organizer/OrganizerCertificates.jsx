@@ -32,18 +32,71 @@ const OrganizerCertificates = () => {
   const [downloadingId, setDownloadingId] = useState(null);
   const [previewCert, setPreviewCert] = useState(null);
   const [selectedType, setSelectedType] = useState("Participation");
-const [activeTab, setActiveTab] = useState("all"); // "all" | "students" | "volunteers"
-const [selectedIds, setSelectedIds] = useState(new Set());
-const [bulkIssuing, setBulkIssuing] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkIssuing, setBulkIssuing] = useState(false);
 
-const CERT_TYPES = ['Participation', 'Achievement', 'Excellence', 'Volunteer', 'Winner', 'Technical', 'Non-Technical', 'Workshop', 'Seminar', 'Sports', 'Cultural'];
+  const CERT_TYPES = ['Participation', 'Achievement', 'Excellence', 'Volunteer', 'Winner', 'Technical', 'Non-Technical', 'Workshop', 'Seminar', 'Sports', 'Cultural'];
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Fetch organizer's events
+  // ── Check if event is completed ──
+// ── Check if event is completed (DATE + TIME) ──
+const isEventCompleted = (event) => {
+  if (!event) return false;
+  if (!event.approved) return false;
+
+  const now = new Date();
+
+  let eventEnd = new Date(event.end_date || event.start_date);
+  if (event.end_time) {
+    const [hours, minutes] = event.end_time.split(':').map(Number);
+    eventEnd.setHours(hours || 0, minutes || 0, 0, 0);
+  } else {
+    eventEnd.setHours(23, 59, 59, 999);
+  }
+
+  let eventStart = new Date(event.start_date);
+  if (event.start_time) {
+    const [hours, minutes] = event.start_time.split(':').map(Number);
+    eventStart.setHours(hours || 0, minutes || 0, 0, 0);
+  }
+
+  if (eventStart > now) return false;
+  return now > eventEnd;
+};
+
+// ── Get Event Status ──
+const getEventStatus = (event) => {
+  if (!event) return { label: "Unknown", color: "#9ca3af", icon: "help" };
+  if (!event.approved) return { label: "⏳ Pending Approval", color: "#f59e0b", icon: "pending" };
+
+  const now = new Date();
+
+  let eventEnd = new Date(event.end_date || event.start_date);
+  if (event.end_time) {
+    const [hours, minutes] = event.end_time.split(':').map(Number);
+    eventEnd.setHours(hours || 0, minutes || 0, 0, 0);
+  } else {
+    eventEnd.setHours(23, 59, 59, 999);
+  }
+
+  let eventStart = new Date(event.start_date);
+  if (event.start_time) {
+    const [hours, minutes] = event.start_time.split(':').map(Number);
+    eventStart.setHours(hours || 0, minutes || 0, 0, 0);
+  }
+
+  if (eventStart > now) return { label: "⏳ Upcoming", color: "#3b82f6", icon: "schedule" };
+  if (now >= eventStart && now <= eventEnd) return { label: "⏳ Ongoing", color: "#8b4fa2", icon: "event" };
+  if (now > eventEnd) return { label: "✅ Completed", color: "#10b981", icon: "check_circle" };
+
+  return { label: "Unknown", color: "#9ca3af", icon: "help" };
+};
+  // ── Fetch organizer's events ──
   useEffect(() => {
     const fetchEvents = async () => {
       if (!token) {
@@ -72,7 +125,7 @@ const CERT_TYPES = ['Participation', 'Achievement', 'Excellence', 'Volunteer', '
     fetchEvents();
   }, [token]);
 
-  // Fetch present students + issued certs when event selected
+  // ── Fetch present students + issued certs when event selected ──
   useEffect(() => {
     if (!selectedEvent || !token) {
       setPresentStudents([]);
@@ -87,7 +140,6 @@ const CERT_TYPES = ['Participation', 'Achievement', 'Excellence', 'Volunteer', '
           axios.get(`${API_URL}/registrations/events/${selectedEvent}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          // ✅ FIX: Use my-events endpoint
           axios.get(`${API_URL}/certificates/my-events`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -114,9 +166,22 @@ const CERT_TYPES = ['Participation', 'Achievement', 'Excellence', 'Volunteer', '
     issuedCerts.map((c) => c.student_id?._id?.toString() || c.student_id?.toString())
   );
 
+  // ── SELECTED EVENT DATA ──
+  const selectedEventData = events.find(ev => ev._id === selectedEvent);
+  const eventCompleted = isEventCompleted(selectedEventData);
+  const eventStatus = getEventStatus(selectedEventData);
+  const canIssue = eventCompleted;
+
+  // ── HANDLE ISSUE CERTIFICATE ──
   const handleIssueCertificate = async (student_id) => {
     if (!token) {
       showToast("Please login again", "error");
+      return;
+    }
+
+    // ✅ CHECK: Event complete hai ya nahi?
+    if (!canIssue) {
+      showToast(`⚠️ Certificate can only be issued for completed events! Status: ${eventStatus.label}`, "error");
       return;
     }
     
@@ -128,7 +193,7 @@ const CERT_TYPES = ['Participation', 'Achievement', 'Excellence', 'Volunteer', '
         {
           student_id: student_id,
           event_id: selectedEvent,
-          certificate_type: selectedType   // 👈 CHANGED: ab dropdown se aayega
+          certificate_type: selectedType
         },
         { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
       );
@@ -145,12 +210,17 @@ const CERT_TYPES = ['Participation', 'Achievement', 'Excellence', 'Volunteer', '
     } finally {
       setIssuingId(null);
     }
-};
+  };
 
-
-
-const handleBulkIssue = async (target) => {
+  // ── HANDLE BULK ISSUE ──
+  const handleBulkIssue = async (target) => {
     if (!token || !selectedEvent) return;
+
+    // ✅ CHECK: Event complete hai ya nahi?
+    if (!canIssue) {
+      showToast(`⚠️ Certificates can only be issued for completed events! Status: ${eventStatus.label}`, "error");
+      return;
+    }
     
     setBulkIssuing(true);
     try {
@@ -164,7 +234,7 @@ const handleBulkIssue = async (target) => {
         }
         payload.student_ids = Array.from(selectedIds);
       } else {
-        payload.target = target; // 'All' | 'Student' | 'Volunteer'
+        payload.target = target;
       }
       
       const res = await axios.post(`${API_URL}/certificates/issue-bulk`, payload, {
@@ -184,21 +254,18 @@ const handleBulkIssue = async (target) => {
     } finally {
       setBulkIssuing(false);
     }
-};
+  };
 
-const toggleSelect = (studentId) => {
+  const toggleSelect = (studentId) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(studentId)) next.delete(studentId);
       else next.add(studentId);
       return next;
     });
-};
+  };
 
-
-
-
-
+  // ── HANDLE DOWNLOAD ──
   const handleDownloadCertificate = async (certId, studentName) => {
     if (!token) {
       showToast("Please login again", "error");
@@ -230,6 +297,7 @@ const toggleSelect = (studentId) => {
     }
   };
 
+  // ── HANDLE DELETE ──
   const handleDeleteCertificate = async () => {
     if (!deleteModal) return;
     
@@ -262,7 +330,7 @@ const toggleSelect = (studentId) => {
     setPreviewCert(cert);
   };
 
- const filteredStudents = presentStudents.filter(student => {
+  const filteredStudents = presentStudents.filter(student => {
     const matchesSearch = 
       student.student_id?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.student_id?.email?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -273,7 +341,7 @@ const toggleSelect = (studentId) => {
       activeTab === "volunteers" ? student.role === "Volunteer" : true;
     
     return matchesSearch && matchesTab;
-});
+  });
 
   const formatDate = (d) => {
     if (!d) return "";
@@ -282,6 +350,7 @@ const toggleSelect = (studentId) => {
 
   const pendingCount = presentStudents.length - issuedCerts.length;
 
+  // ── LOADING ──
   if (!token) {
     return (
       <div className="flex min-h-screen items-center justify-center" style={{ background: "#f7f4fb" }}>
@@ -345,7 +414,7 @@ const toggleSelect = (studentId) => {
 
         <div className="px-6 pt-6 max-w-7xl mx-auto">
 
-          {/* Event Selection Card */}
+          {/* ── EVENT SELECTION CARD ── */}
           <div className="bg-white rounded-3xl overflow-hidden mb-6"
             style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.09)", border: "1px solid rgba(155,89,182,0.08)" }}>
             
@@ -375,11 +444,14 @@ const toggleSelect = (studentId) => {
                     className="w-full px-4 py-3 rounded-xl border-2 border-purple-100 focus:border-[#8b4fa2] focus:outline-none transition-colors bg-white text-gray-700 appearance-none cursor-pointer"
                   >
                     <option value="">Choose an event...</option>
-                    {events.map((ev) => (
-                      <option key={ev._id} value={ev._id}>
-                        {ev.title} {!ev.approved && "(Pending Approval)"}
-                      </option>
-                    ))}
+                    {events.map((ev) => {
+                      const status = getEventStatus(ev);
+                      return (
+                        <option key={ev._id} value={ev._id}>
+                          {ev.title} — {status.label}
+                        </option>
+                      );
+                    })}
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <span className="material-symbols-outlined text-purple-500">expand_more</span>
@@ -391,7 +463,36 @@ const toggleSelect = (studentId) => {
 
           {selectedEvent && (
             <>
-              {/* Stats Cards */}
+              {/* ── EVENT STATUS BANNER ── */}
+              <div className={`mb-6 p-4 rounded-2xl flex items-center gap-3 ${
+                canIssue ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"
+              }`}>
+                <span className={`material-symbols-outlined text-2xl ${
+                  canIssue ? "text-green-500" : "text-amber-500"
+                }`}>
+                  {canIssue ? "check_circle" : "info"}
+                </span>
+                <div>
+                  <p className={`font-bold text-sm ${canIssue ? "text-green-700" : "text-amber-700"}`}>
+                    Event Status: {eventStatus.label}
+                  </p>
+                  {!canIssue && (
+                    <p className="text-xs text-amber-600">
+                      {!selectedEventData?.approved 
+                        ? "Event approval pending. Certificates can only be issued for approved events."
+                        : "Event is still ongoing. Certificates can only be issued after the event ends."
+                      }
+                    </p>
+                  )}
+                  {canIssue && (
+                    <p className="text-xs text-green-600">
+                      ✅ This event is complete. You can issue certificates to all present students.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* ── STATS CARDS ── */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div className="bg-white rounded-3xl p-5 text-center transition-all hover:scale-105"
                   style={{ boxShadow: "0 4px 20px rgba(155,89,182,0.08)", border: "1px solid rgba(155,89,182,0.06)" }}>
@@ -421,7 +522,7 @@ const toggleSelect = (studentId) => {
                 </div>
               </div>
 
-              {/* Search Bar */}
+              {/* ── SEARCH BAR ── */}
               <div className="bg-white rounded-3xl mb-6 p-4"
                 style={{ boxShadow: "0 2px 12px rgba(155,89,182,0.06)", border: "1px solid rgba(155,89,182,0.06)" }}>
                 <div className="relative">
@@ -436,79 +537,90 @@ const toggleSelect = (studentId) => {
                 </div>
               </div>
 
-              {/* Certificate Type + Bulk Actions */}
-<div className="bg-white rounded-3xl mb-6 p-5"
-  style={{ boxShadow: "0 2px 12px rgba(155,89,182,0.06)", border: "1px solid rgba(155,89,182,0.06)" }}>
-  
-  <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-    <div className="flex-1">
-      <label className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1 block">Certificate Type</label>
-      <select
-        value={selectedType}
-        onChange={(e) => setSelectedType(e.target.value)}
-        className="w-full px-4 py-2.5 rounded-xl border-2 border-purple-100 focus:border-[#8b4fa2] focus:outline-none bg-white text-gray-700"
-      >
-        {CERT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-      </select>
-    </div>
-  </div>
+              {/* ── CERTIFICATE TYPE + BULK ACTIONS ── */}
+              <div className="bg-white rounded-3xl mb-6 p-5"
+                style={{ boxShadow: "0 2px 12px rgba(155,89,182,0.06)", border: "1px solid rgba(155,89,182,0.06)" }}>
+                
+                <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+                  <div className="flex-1">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1 block">Certificate Type</label>
+                    <select
+                      value={selectedType}
+                      onChange={(e) => setSelectedType(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-purple-100 focus:border-[#8b4fa2] focus:outline-none bg-white text-gray-700"
+                    >
+                      {CERT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                </div>
 
-  {/* Tabs */}
-  <div className="flex gap-2 mb-4">
-    {[
-      { key: "all", label: "All" },
-      { key: "students", label: "Students" },
-      { key: "volunteers", label: "Volunteers" },
-    ].map(tab => (
-      <button
-        key={tab.key}
-        onClick={() => setActiveTab(tab.key)}
-        className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
-          activeTab === tab.key
-            ? "text-white shadow-md"
-            : "text-gray-500 bg-gray-100 hover:bg-gray-200"
-        }`}
-        style={activeTab === tab.key ? { background: "linear-gradient(135deg,#9B59B6,#6d3483)" } : {}}
-      >
-        {tab.label}
-      </button>
-    ))}
-  </div>
+                {/* Tabs */}
+                <div className="flex gap-2 mb-4">
+                  {[
+                    { key: "all", label: "All" },
+                    { key: "students", label: "Students" },
+                    { key: "volunteers", label: "Volunteers" },
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                        activeTab === tab.key
+                          ? "text-white shadow-md"
+                          : "text-gray-500 bg-gray-100 hover:bg-gray-200"
+                      }`}
+                      style={activeTab === tab.key ? { background: "linear-gradient(135deg,#9B59B6,#6d3483)" } : {}}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
 
-  {/* Bulk Buttons */}
-  <div className="flex flex-wrap gap-3">
-    <button
-      onClick={() => handleBulkIssue('All')}
-      disabled={bulkIssuing}
-      className="px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
-      style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)" }}
-    >
-      {bulkIssuing ? "Issuing..." : "🎓 Issue to All Present"}
-    </button>
+                {/* Bulk Buttons - Disabled if event not completed */}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => handleBulkIssue('All')}
+                    disabled={bulkIssuing || !canIssue}
+                    className={`px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      !canIssue ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    style={{ background: canIssue ? "linear-gradient(135deg,#9B59B6,#6d3483)" : "#b0a0b0" }}
+                  >
+                    {bulkIssuing ? "Issuing..." : "🎓 Issue to All Present"}
+                  </button>
 
-    <button
-      onClick={() => handleBulkIssue('Volunteer')}
-      disabled={bulkIssuing}
-      className="px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
-      style={{ background: "linear-gradient(135deg,#4ECDC4,#2b9d94)" }}
-    >
-      {bulkIssuing ? "Issuing..." : "🙋 Issue to All Volunteers"}
-    </button>
+                  <button
+                    onClick={() => handleBulkIssue('Volunteer')}
+                    disabled={bulkIssuing || !canIssue}
+                    className={`px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      !canIssue ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    style={{ background: canIssue ? "linear-gradient(135deg,#4ECDC4,#2b9d94)" : "#b0b0b0" }}
+                  >
+                    {bulkIssuing ? "Issuing..." : "🙋 Issue to All Volunteers"}
+                  </button>
 
-    <button
-      onClick={() => handleBulkIssue('selected')}
-      disabled={bulkIssuing || selectedIds.size === 0}
-      className="px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
-      style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}
-    >
-      {bulkIssuing ? "Issuing..." : `✅ Issue to Selected (${selectedIds.size})`}
-    </button>
-  </div>
-</div>
+                  <button
+                    onClick={() => handleBulkIssue('selected')}
+                    disabled={bulkIssuing || selectedIds.size === 0 || !canIssue}
+                    className={`px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      !canIssue || selectedIds.size === 0 ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    style={{ background: canIssue ? "linear-gradient(135deg,#f59e0b,#d97706)" : "#b0a0a0" }}
+                  >
+                    {bulkIssuing ? "Issuing..." : `✅ Issue to Selected (${selectedIds.size})`}
+                  </button>
+                </div>
 
+                {!canIssue && (
+                  <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">lock</span>
+                    Issue certificates disabled — event is {eventStatus.label.toLowerCase()}
+                  </p>
+                )}
+              </div>
 
-
-              {/* Present Students Section */}
+              {/* ── PRESENT STUDENTS SECTION ── */}
               <div className="bg-white rounded-3xl overflow-hidden mb-6"
                 style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.09)", border: "1px solid rgba(155,89,182,0.08)" }}>
                 
@@ -546,62 +658,69 @@ const toggleSelect = (studentId) => {
                       return (
                         <div key={reg._id} className="p-5 hover:bg-purple-50/30 transition-colors group">
                           <div className="flex items-center justify-between gap-4 flex-wrap">
-  <div className="flex items-center gap-4 flex-1 min-w-0">
-    {/* Checkbox */}
-    {!alreadyIssued && (
-      <input
-        type="checkbox"
-        checked={selectedIds.has(studentId?.toString())}
-        onChange={() => toggleSelect(studentId?.toString())}
-        className="w-5 h-5 rounded border-2 border-purple-300 accent-[#8b4fa2] cursor-pointer shrink-0"
-      />
-    )}
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              {/* Checkbox - only if not already issued AND canIssue */}
+                              {!alreadyIssued && canIssue && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(studentId?.toString())}
+                                  onChange={() => toggleSelect(studentId?.toString())}
+                                  className="w-5 h-5 rounded border-2 border-purple-300 accent-[#8b4fa2] cursor-pointer shrink-0"
+                                />
+                              )}
 
-    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-base font-black shadow-md transition-transform group-hover:scale-105"
-      style={{ background: AVATAR_GRADS[idx % AVATAR_GRADS.length] }}>
-      {initials}
-    </div>
+                              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-base font-black shadow-md transition-transform group-hover:scale-105"
+                                style={{ background: AVATAR_GRADS[idx % AVATAR_GRADS.length] }}>
+                                {initials}
+                              </div>
 
-    <div className="flex-1 min-w-0">
-      <h3 className="font-black text-gray-800 truncate">{studentName}</h3>
-      <p className="text-sm text-gray-500 truncate">{reg.student_id?.email || ""}</p>
-      <div className="flex items-center gap-2 mt-0.5">
-        {reg.student_id?.department && (
-          <p className="text-xs text-gray-400">{reg.student_id.department}</p>
-        )}
-        {reg.role === "Volunteer" && (
-          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-600">VOLUNTEER</span>
-        )}
-      </div>
-    </div>
-  </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-black text-gray-800 truncate">{studentName}</h3>
+                                <p className="text-sm text-gray-500 truncate">{reg.student_id?.email || ""}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {reg.student_id?.department && (
+                                    <p className="text-xs text-gray-400">{reg.student_id.department}</p>
+                                  )}
+                                  {reg.role === "Volunteer" && (
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-600">VOLUNTEER</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
 
-  {alreadyIssued ? (
-    <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full">
-      <span className="material-symbols-outlined text-green-500 text-sm">check_circle</span>
-      <span className="text-green-600 font-semibold text-sm">Issued</span>
-    </div>
-  ) : (
-    <button
-      onClick={() => handleIssueCertificate(studentId)}
-      disabled={issuingId === studentId}
-      className="px-6 py-2 rounded-full text-white font-bold text-sm transition-all shadow-md hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
-      style={{ background: "linear-gradient(135deg,#9B59B6,#6d3483)" }}
-    >
-      {issuingId === studentId ? (
-        <span className="flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          Issuing...
-        </span>
-      ) : (
-        <span className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-sm">verified</span>
-          Issue Certificate
-        </span>
-      )}
-    </button>
-  )}
-</div>
+                            {alreadyIssued ? (
+                              <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full">
+                                <span className="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+                                <span className="text-green-600 font-semibold text-sm">Issued</span>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleIssueCertificate(studentId)}
+                                disabled={issuingId === studentId || !canIssue}
+                                className={`px-6 py-2 rounded-full text-white font-bold text-sm transition-all shadow-md hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 ${
+                                  !canIssue ? "opacity-50 cursor-not-allowed" : ""
+                                }`}
+                                style={{ background: canIssue ? "linear-gradient(135deg,#9B59B6,#6d3483)" : "#b0a0b0" }}
+                              >
+                                {issuingId === studentId ? (
+                                  <span className="flex items-center gap-2">
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    Issuing...
+                                  </span>
+                                ) : !canIssue ? (
+                                  <span className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-sm">lock</span>
+                                    {!selectedEventData?.approved ? "Not Approved" : "Event Ongoing"}
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-sm">verified</span>
+                                    Issue Certificate
+                                  </span>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -609,7 +728,7 @@ const toggleSelect = (studentId) => {
                 )}
               </div>
 
-              {/* Issued Certificates Section */}
+              {/* ── ISSUED CERTIFICATES SECTION ── */}
               {issuedCerts.length > 0 && (
                 <div className="bg-white rounded-3xl overflow-hidden"
                   style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.09)", border: "1px solid rgba(155,89,182,0.08)" }}>
@@ -649,7 +768,6 @@ const toggleSelect = (studentId) => {
                           </div>
                           
                           <div className="flex items-center gap-2">
-                            {/* Preview Button */}
                             <button
                               onClick={() => handlePreviewCertificate(cert)}
                               className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all"
@@ -658,7 +776,6 @@ const toggleSelect = (studentId) => {
                               Preview
                             </button>
                             
-                            {/* Download Button */}
                             <button
                               onClick={() => handleDownloadCertificate(cert._id, cert.student_id?.name)}
                               disabled={downloadingId === cert._id}
@@ -677,7 +794,6 @@ const toggleSelect = (studentId) => {
                               )}
                             </button>
                             
-                            {/* Delete Button */}
                             <button
                               onClick={() => setDeleteModal(cert)}
                               className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all"
@@ -697,7 +813,7 @@ const toggleSelect = (studentId) => {
         </div>
       </main>
 
-      {/* Preview Modal */}
+      {/* ── PREVIEW MODAL ── */}
       {previewCert && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => setPreviewCert(null)}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform transition-all duration-200 scale-100" onClick={(e) => e.stopPropagation()}>
@@ -752,7 +868,7 @@ const toggleSelect = (studentId) => {
         </div>
       )}
 
-      {/* Delete Modal */}
+      {/* ── DELETE MODAL ── */}
       {deleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-7 text-center transform transition-all duration-200 scale-100">

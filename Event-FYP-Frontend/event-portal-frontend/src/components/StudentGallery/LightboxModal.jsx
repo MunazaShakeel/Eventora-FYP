@@ -6,16 +6,15 @@ const LightboxModal = ({
   filteredMedia,
   savedItems,
   toast,
-  shareModal,
   onClose,
   onPrev,
   onNext,
   onSave,
   onDownload,
-  onShare,
-  onShareClose,
+
+  
   onCopyLink,
-  onShareNative,
+
   BASE_URL
 }) => {
   return (
@@ -38,10 +37,7 @@ const LightboxModal = ({
               <span className="material-symbols-outlined text-lg">download</span>
               <span className="text-[0.58rem] opacity-60">Download</span>
             </button>
-            <button onClick={e => onShare(e, lightbox)} className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-white/80 hover:bg-white/10 transition cursor-pointer">
-              <span className="material-symbols-outlined text-lg">share</span>
-              <span className="text-[0.58rem] opacity-60">Share</span>
-            </button>
+           
           </div>
 
           {filteredMedia.length > 1 && (
@@ -68,33 +64,7 @@ const LightboxModal = ({
         </div>
       )}
 
-      {/* SHARE MODAL */}
-      {shareModal && (
-        <div onClick={onShareClose} className="fixed inset-0 z-300 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div onClick={e => e.stopPropagation()} className="bg-white rounded-t-2xl w-full max-w-sm p-6 shadow-xl animate-scaleIn">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-['Syne',sans-serif] font-bold text-base text-gray-800">Share Memory</h3>
-              <button onClick={onShareClose} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={onCopyLink} className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg bg-gray-100 hover:bg-purple-600 transition-all cursor-pointer group">
-                <span className="material-symbols-outlined text-xl text-purple-600 group-hover:text-white">link</span>
-                <p className="text-xs font-semibold text-gray-500 group-hover:text-white">Copy Link</p>
-              </button>
-              <button onClick={onShareNative} className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg bg-gray-100 hover:bg-teal-600 transition-all cursor-pointer group">
-                <span className="material-symbols-outlined text-xl text-teal-600 group-hover:text-white">share</span>
-                <p className="text-xs font-semibold text-gray-500 group-hover:text-white">Share</p>
-              </button>
-              <button onClick={e => { onDownload(e, shareModal); onShareClose(); }} className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg bg-gray-100 hover:bg-emerald-600 transition-all cursor-pointer group">
-                <span className="material-symbols-outlined text-xl text-emerald-600 group-hover:text-white">download</span>
-                <p className="text-xs font-semibold text-gray-500 group-hover:text-white">Download</p>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+     
 
       {/* TOAST */}
       {toast && (

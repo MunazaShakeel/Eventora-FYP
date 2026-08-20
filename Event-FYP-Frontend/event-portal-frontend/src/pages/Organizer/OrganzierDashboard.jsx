@@ -86,7 +86,7 @@ const QuickActionButton = ({ action, onClick, index }) => (
   </button>
 );
 
-// ── NOTIFICATION BELL COMPONENT ── (REPLACE WITH THIS)
+// ── NOTIFICATION BELL COMPONENT ── (FIXED WITH DELETE BUTTON)
 const NotificationBell = ({ 
   notifications, 
   unreadCount, 
@@ -151,7 +151,6 @@ const NotificationBell = ({
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-purple-50 to-teal-50">
             <p className="text-sm font-black text-gray-800">Notifications</p>
             <div className="flex items-center gap-2">
-              {/* ✅ MARK ALL READ - HAMESHA DIKHEGA */}
               <button 
                 onClick={onMarkAllRead}
                 disabled={unreadCount === 0}
@@ -194,9 +193,16 @@ const NotificationBell = ({
                     <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">{n.message}</p>
                     <p className="text-[10px] text-gray-400 mt-1">{formatTime(n.time)}</p>
                   </div>
-                  {!n.isRead && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#8b4fa2] shrink-0 mt-1" />
-                  )}
+                  {/* ✅ CROSS BUTTON - DELETE NOTIFICATION */}
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      onDelete(n._id); 
+                    }} 
+                    className="text-gray-300 hover:text-red-400 transition p-1 shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
                 </div>
               ))}
             </div>
@@ -206,7 +212,6 @@ const NotificationBell = ({
     </div>
   );
 };
-
 const OrganizerDashboard = () => {
   const navigate = useNavigate();
   const { user, token } = useAuth();
@@ -311,19 +316,15 @@ const OrganizerDashboard = () => {
     }
   };
 
-  // 🔄 REPLACE existing markAllAsRead with this:
 const markAllAsRead = async () => {
   if (!token) return;
   try {
-    await axios.put(`${API_URL}/notifications/read-all`, {}, {
+    await axios.put(`${API_URL}/api/notifications/read-all`, {}, {
       headers: { Authorization: `Bearer ${token}` }
     });
     
-    // ✅ Sab notifications ko read mark karein
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     setUnreadCount(0);
-    
-    // ✅ Force re-fetch to sync with server
     await fetchNotifications();
     
   } catch (err) {
@@ -617,9 +618,9 @@ const markAllAsRead = async () => {
                   isOpen={notifOpen}
                   onToggle={() => {
                     setNotifOpen(!notifOpen);
-                    if (!notifOpen && unreadCount > 0) {
-                      markAllAsRead();
-                    }
+                  if (!notifOpen && unreadCount > 0) {
+  markAllAsRead();
+}
                   }}
                   onMarkRead={markAsRead}
                   onMarkAllRead={markAllAsRead}
