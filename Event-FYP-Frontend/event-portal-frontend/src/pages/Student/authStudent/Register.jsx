@@ -202,89 +202,113 @@ const Register = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    // Validate name
-    if (!validateName(formData.name)) {
-      setError("Please enter a valid full name");
+  // Validate name
+  if (!validateName(formData.name)) {
+    setError("Please enter a valid full name");
+    return;
+  }
+
+  if (formData.grade === "other" && !otherDepartmentValue.trim()) {
+    setError("Please specify your department");
+    return;
+  }
+
+  const isPasswordValid = validatePassword(formData.password);
+  if (!isPasswordValid) {
+    setError("Password must meet all the requirements shown below");
+    return;
+  }
+
+  if (formData.password !== formData.confirmPassword) {
+    setError("Passwords do not match");
+    return;
+  }
+
+  if (emailAvailable === false) {
+    setError("This email is already registered. Please use a different email.");
+    return;
+  }
+
+  if (showSemester && !formData.semester) {
+    setError("Please select your semester");
+    return;
+  }
+
+  if (!formData.name || !formData.email || !formData.grade) {
+    setError("Please fill all required fields");
+    return;
+  }
+
+  if (formData.phone) {
+    if (formData.phone.length !== 11) {
+      setError("Phone number must be exactly 11 digits");
       return;
     }
-
-    if (formData.grade === "other" && !otherDepartmentValue.trim()) {
-      setError("Please specify your department");
+    if (!formData.phone.startsWith('03')) {
+      setError("Pakistani number must start with 03 (e.g., 03XXXXXXXXX)");
       return;
     }
+  }
 
-    const isPasswordValid = validatePassword(formData.password);
-    if (!isPasswordValid) {
-      setError("Password must meet all the requirements shown below");
-      return;
+  try {
+    setError("");
+
+    // ✅ FIX: Department ko properly set karo
+    let finalDepartment = "";
+    
+    if (formData.grade === "other") {
+      // Custom department
+      finalDepartment = otherDepartmentValue.trim();
+    } else if (formData.grade === "cs") {
+      finalDepartment = "Computer Science";
+    } else if (formData.grade === "math") {
+      finalDepartment = "Mathematics";
+    } else if (formData.grade === "hssc1") {
+      finalDepartment = "HSSC I";
+    } else if (formData.grade === "hssc2") {
+      finalDepartment = "HSSC II";
+    } else if (formData.grade === "10") {
+      finalDepartment = "Grade 10";
+    } else if (formData.grade === "9") {
+      finalDepartment = "Grade 9";
+    } else if (formData.grade === "8") {
+      finalDepartment = "Grade 8";
+    } else if (formData.grade === "7") {
+      finalDepartment = "Grade 7";
+    } else if (formData.grade === "6") {
+      finalDepartment = "Grade 6";
+    } else if (formData.grade === "5") {
+      finalDepartment = "Grade 5";
+    } else {
+      finalDepartment = formData.grade; // fallback
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
+    const payload = {
+      name: formData.name.trim(),
+      email: formData.email,
+      password: formData.password,
+      department: finalDepartment,  // ✅ Department set karo
+      grade: finalDepartment,       // ✅ Grade bhi set karo
+      semester: formData.semester ? Number(formData.semester) : null,
+      phone: formData.phone || ""
+    };
+
+    console.log("Sending payload:", payload);
+
+    const res = await axios.post(`${API_URL}/students/register`, payload);
+    navigate("/student-login");
+  } catch (err) {
+    console.error("Server response:", err.response?.data);
+    
+    if (err.response?.data?.message?.includes("email already exists")) {
+      setError("This email is already registered. Please login or use a different email.");
+    } else {
+      setError(err?.response?.data?.message || "Registration failed. Please check all fields.");
     }
-
-    if (emailAvailable === false) {
-      setError("This email is already registered. Please use a different email.");
-      return;
-    }
-
-    if (showSemester && !formData.semester) {
-      setError("Please select your semester");
-      return;
-    }
-
-    if (!formData.name || !formData.email || !formData.grade) {
-      setError("Please fill all required fields");
-      return;
-    }
-
-    if (formData.phone) {
-      if (formData.phone.length !== 11) {
-        setError("Phone number must be exactly 11 digits");
-        return;
-      }
-      if (!formData.phone.startsWith('03')) {
-        setError("Pakistani number must start with 03 (e.g., 03XXXXXXXXX)");
-        return;
-      }
-    }
-
-    try {
-      setError("");
-
-      let finalDepartment = formData.grade;
-      if (formData.grade === "other") {
-        finalDepartment = otherDepartmentValue;
-      }
-
-      const payload = {
-        name: formData.name.trim(),
-        email: formData.email,
-        password: formData.password,
-        department: finalDepartment,
-        grade: finalDepartment,
-        semester: formData.semester ? Number(formData.semester) : null,
-        phone: formData.phone || ""
-      };
-
-      console.log("Sending payload:", payload);
-
-      const res = await axios.post(`${API_URL}/students/register`, payload);
-      navigate("/student-login");
-    } catch (err) {
-      console.error("Server response:", err.response?.data);
-      
-      if (err.response?.data?.message?.includes("email already exists")) {
-        setError("This email is already registered. Please login or use a different email.");
-      } else {
-        setError(err?.response?.data?.message || "Registration failed. Please check all fields.");
-      }
-    }
-  };
-
+  }
+};
   const getPasswordStrength = () => {
     const validCount = Object.values(passwordErrors).filter(val => val === true).length;
     if (validCount === 5) return { text: "Strong", color: "text-green-600", bg: "bg-green-100" };

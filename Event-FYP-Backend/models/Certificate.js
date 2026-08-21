@@ -11,9 +11,9 @@ const certificateSchema = new mongoose.Schema({
         ref: 'Event',
         required: true
     },
-    organizer_id: {  // ✅ YEH FIELD HONA CHAHIYE
+    organizer_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Organizer',  // ✅ OR 'User' (jo bhi aapka organizer model hai)
+        ref: 'Organizer',
         required: true
     },
     certificate_type: {
@@ -45,11 +45,35 @@ certificateSchema.index(
     { unique: true }
 );
 
-// Auto-generate certificate number
+// Auto-generate certificate number (based on highest existing number, not count)
+// Fix: countDocuments() ki jagah highest number dhoond ke +1 karte hain,
+// taake delete hone ke baad bhi number collide na ho.
 certificateSchema.pre('save', async function() {
     if (!this.certificate_number) {
-        const count = await mongoose.model('Certificate').countDocuments();
-        this.certificate_number = `CERT-${String(count + 1).padStart(5, '0')}`;
+        const CertificateModel = mongoose.model('Certificate');
+        let nextNum = 1;
+        let isUnique = false;
+
+        while (!isUnique) {
+            const lastCert = await CertificateModel.findOne({
+                certificate_number: { $regex: /^CERT-\d+$/ }
+            }).sort({ certificate_number: -1 });
+
+            if (lastCert && lastCert.certificate_number) {
+                const lastNum = parseInt(lastCert.certificate_number.split('-')[1], 10);
+                if (!isNaN(lastNum)) nextNum = lastNum + 1;
+            }
+
+            const candidate = `CERT-${String(nextNum).padStart(5, '0')}`;
+            const exists = await CertificateModel.findOne({ certificate_number: candidate });
+
+            if (!exists) {
+                this.certificate_number = candidate;
+                isUnique = true;
+            } else {
+                nextNum++; // rare race-condition case, agla number try karo
+            }
+        }
     }
 });
 

@@ -555,10 +555,12 @@ const ManageCertificates = () => {
                         <p className="text-sm text-gray-700">{cert.organizer_id?.name || "Unknown"}</p>
                         <p className="text-xs text-gray-400">{cert.organizer_id?.email || ""}</p>
                       </td>
+                      {/* ✅ CHANGE 1: Table Row - Department column with fallback to grade */}
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
-                          <p className="text-sm text-gray-700">{cert.student_id?.department || "N/A"}</p>
-                          <p className="text-xs text-gray-400">{cert.student_id?.grade || ""}</p>
+                          <p className="text-sm text-gray-700">
+                            {cert.student_id?.department || cert.student_id?.grade || "N/A"}
+                          </p>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -593,127 +595,122 @@ const ManageCertificates = () => {
       </main>
 
       {/* ─── CERTIFICATE DETAILS MODAL ─── */}
-  {/* ─── CERTIFICATE DETAILS MODAL ─── */}
-{selectedCertificate && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md px-4"
-    onClick={() => setSelectedCertificate(null)}
-  >
-    <div
-      className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-fadeIn"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-          <Award size={22} style={{ color: COLORS.purple }} />
-          Certificate Details
-        </h2>
-        <button
+      {selectedCertificate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md px-4"
           onClick={() => setSelectedCertificate(null)}
-          className="p-2 rounded-xl hover:bg-gray-100 transition-all duration-300"
         >
-          <X size={20} className="text-gray-500" />
-        </button>
-      </div>
-
-      <div className="p-6 space-y-4">
-        {/* Student & Department */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-xl bg-gray-50">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
-              <User size={14} /> Student
-            </p>
-            <p className="font-semibold text-gray-800 mt-1">
-              {selectedCertificate.student_id?.name || "N/A"}
-            </p>
-            <p className="text-sm text-gray-500">
-              {selectedCertificate.student_id?.email || "N/A"}
-            </p>
-          </div>
-          <div className="p-4 rounded-xl bg-gray-50">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
-              <GraduationCap size={14} /> Department
-            </p>
-            <p className="font-semibold text-gray-800 mt-1">
-              {selectedCertificate.student_id?.department && selectedCertificate.student_id.department !== "N/A" && selectedCertificate.student_id.department !== ""
-                ? selectedCertificate.student_id.department
-                : "Not Specified"}
-            </p>
-            {selectedCertificate.student_id?.grade && selectedCertificate.student_id.grade !== "N/A" && selectedCertificate.student_id.grade !== "" && (
-              <p className="text-sm text-gray-500">Grade: {selectedCertificate.student_id.grade}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Event & Organizer */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-xl bg-gray-50">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
-              <CalendarDays size={14} /> Event
-            </p>
-            <p className="font-semibold text-gray-800 mt-1">
-              {selectedCertificate.event_id?.title || "N/A"}
-            </p>
-            <p className="text-sm text-gray-500">
-              {selectedCertificate.event_id?.venue || "N/A"}
-            </p>
-          </div>
-          <div className="p-4 rounded-xl bg-gray-50">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
-              <Building size={14} /> Organizer
-            </p>
-            <p className="font-semibold text-gray-800 mt-1">
-              {selectedCertificate.organizer_id?.name || "N/A"}
-            </p>
-            <p className="text-sm text-gray-500">
-              {selectedCertificate.organizer_id?.email || "N/A"}
-            </p>
-          </div>
-        </div>
-
-        {/* Certificate ID & Issue Date */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-xl bg-gray-50">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Certificate ID</p>
-            <p className="font-semibold text-gray-800 mt-1 font-mono">
-              {selectedCertificate.certificate_number || selectedCertificate._id}
-            </p>
-            <p className="text-sm text-gray-500">
-              Type: {selectedCertificate.certificate_type || "Standard"}
-            </p>
-          </div>
-          <div className="p-4 rounded-xl bg-gray-50">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Issue Date</p>
-            <p className="font-semibold text-gray-800 mt-1">
-              {formatDateLong(selectedCertificate.issued_date)}
-            </p>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-3 pt-4 border-t border-gray-100">
-          <button
-            onClick={() => {
-              handleDownloadCertificate(selectedCertificate._id);
-              setSelectedCertificate(null);
-            }}
-            className="flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2"
-            style={{ background: "linear-gradient(135deg, #8b4fa2, #6d3483)" }}
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-fadeIn"
+            onClick={(e) => e.stopPropagation()}
           >
-            <Download size={18} />
-            Download PDF
-          </button>
-          <button
-            onClick={() => setSelectedCertificate(null)}
-            className="flex-1 py-3 rounded-xl text-sm font-bold border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all duration-300"
-          >
-            Close
-          </button>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Award size={22} style={{ color: COLORS.purple }} />
+                Certificate Details
+              </h2>
+              <button
+                onClick={() => setSelectedCertificate(null)}
+                className="p-2 rounded-xl hover:bg-gray-100 transition-all duration-300"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Student & Department */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-gray-50">
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <User size={14} /> Student
+                  </p>
+                  <p className="font-semibold text-gray-800 mt-1">
+                    {selectedCertificate.student_id?.name || "N/A"}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {selectedCertificate.student_id?.email || "N/A"}
+                  </p>
+                </div>
+                {/* ✅ CHANGE 2: Details Modal - Department card with fallback to grade */}
+                <div className="p-4 rounded-xl bg-gray-50">
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <GraduationCap size={14} /> Department
+                  </p>
+                  <p className="font-semibold text-gray-800 mt-1">
+                    {selectedCertificate.student_id?.department || selectedCertificate.student_id?.grade || "Not Specified"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Event & Organizer */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-gray-50">
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <CalendarDays size={14} /> Event
+                  </p>
+                  <p className="font-semibold text-gray-800 mt-1">
+                    {selectedCertificate.event_id?.title || "N/A"}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {selectedCertificate.event_id?.venue || "N/A"}
+                  </p>
+                </div>
+                <div className="p-4 rounded-xl bg-gray-50">
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <Building size={14} /> Organizer
+                  </p>
+                  <p className="font-semibold text-gray-800 mt-1">
+                    {selectedCertificate.organizer_id?.name || "N/A"}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {selectedCertificate.organizer_id?.email || "N/A"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Certificate ID & Issue Date */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-gray-50">
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Certificate ID</p>
+                  <p className="font-semibold text-gray-800 mt-1 font-mono">
+                    {selectedCertificate.certificate_number || selectedCertificate._id}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Type: {selectedCertificate.certificate_type || "Standard"}
+                  </p>
+                </div>
+                <div className="p-4 rounded-xl bg-gray-50">
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Issue Date</p>
+                  <p className="font-semibold text-gray-800 mt-1">
+                    {formatDateLong(selectedCertificate.issued_date)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => {
+                    handleDownloadCertificate(selectedCertificate._id);
+                    setSelectedCertificate(null);
+                  }}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                  style={{ background: "linear-gradient(135deg, #8b4fa2, #6d3483)" }}
+                >
+                  <Download size={18} />
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => setSelectedCertificate(null)}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all duration-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       {/* ─── PREVIEW CERTIFICATE MODAL ─── */}
       {previewCertificate && (
@@ -761,8 +758,9 @@ const ManageCertificates = () => {
                   <p className="text-sm text-gray-400 mt-1">
                     {previewCertificate.student_id?.email || "No email"}
                   </p>
+                  {/* ✅ CHANGE 3: Preview Modal - Department/Grade line with fallback */}
                   <p className="text-sm text-gray-400">
-                    {previewCertificate.student_id?.department || "Department"} • {previewCertificate.student_id?.grade || "Grade"}
+                    {previewCertificate.student_id?.department || previewCertificate.student_id?.grade || "Department Not Specified"}
                   </p>
                   <div className="mt-6">
                     <p className="text-gray-600">for successfully participating in</p>

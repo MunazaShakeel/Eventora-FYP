@@ -6,7 +6,7 @@ const { sendNotification } = require('../utils/notification');
 // ------------------ REGISTER STUDENT ------------------
 exports.registerStudent = async (req, res) => {
     try {
-        const { name, email, phone, grade, semester, password } = req.body;
+        const { name, email, phone, grade, department, semester, password } = req.body;
 
         // Check if email already exists
         const existingEmail = await Student.findOne({ email });
@@ -29,6 +29,7 @@ exports.registerStudent = async (req, res) => {
             email,
             phone: phone || null,  // Empty phone ko null set karein
             grade,
+            department,
             semester,
             password: hashedPassword
         });

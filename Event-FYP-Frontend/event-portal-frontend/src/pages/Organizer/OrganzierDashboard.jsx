@@ -767,55 +767,60 @@ const markAllAsRead = async () => {
           {/* ── BOTTOM ROW ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* Top Rated */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
-              style={{ animation: "slideUp 0.5s ease forwards 500ms", opacity: 0 }}>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-lg font-black text-gray-800">🏆 Top Rated</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Click to view all feedback</p>
-                </div>
-                <button
-                  onClick={() => navigate("/organizer/feedback")}
-                  className="text-xs font-bold text-[#8b4fa2] hover:underline flex items-center gap-1"
-                >
-                  View All
-                </button>
+           {/* Top Rated */}
+<div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"
+  style={{ animation: "slideUp 0.5s ease forwards 500ms", opacity: 0 }}>
+  <div className="flex items-center justify-between mb-5">
+    <div>
+      <h3 className="text-lg font-black text-gray-800">🏆 Top Rated</h3>
+      <p className="text-xs text-gray-400 mt-0.5">Click to view all feedback</p>
+    </div>
+    <button
+      onClick={() => navigate("/organizer/feedback")}
+      className="text-xs font-bold text-[#8b4fa2] hover:underline flex items-center gap-1"
+    >
+      View All
+    </button>
+  </div>
+  {!topEvents || topEvents.length === 0 ? (
+    <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+      <span className="material-symbols-outlined text-5xl mb-3 opacity-50">star</span>
+      <p className="text-sm font-semibold">No feedback yet</p>
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {topEvents.slice(0, 3).map((ev, i) => {
+        const reviewCount = ev.totalFeedbacks || 0;
+        return (
+          <div
+            key={ev._id || i}  // Better key than index
+            onClick={() => navigate("/organizer/feedback")}
+            className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-md shrink-0"
+                style={{ background: medalGradients[i] || medalGradients[2] }}> {/* Fallback */}
+                {i + 1}
               </div>
-              {!topEvents || topEvents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-                  <span className="material-symbols-outlined text-5xl mb-3 opacity-50">reviews</span>
-                  <p className="text-sm font-semibold">No feedback yet</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {topEvents.slice(0, 3).map((ev, i) => (
-                    <div
-                      key={i}
-                      onClick={() => navigate("/organizer/feedback")}
-                      className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-md shrink-0"
-                          style={{ background: medalGradients[Math.min(i, 3)] }}>
-                          {i + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-700 truncate">
-                            {ev.title || ev.eventTitle || `Event #${ev._id?.toString().slice(-6)}`}
-                          </p>
-                          <p className="text-[10px] text-gray-400">{ev.totalFeedbacks || 0} reviews</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full shadow-sm shrink-0">
-                        <span className="material-symbols-outlined text-sm text-amber-400" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                        <span className="text-sm font-black text-amber-600">{(ev.avgRating || 0).toFixed(1)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-gray-700 truncate">
+                  {ev.title || ev.eventTitle || `Event #${ev._id?.toString().slice(-6)}`}
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}  {/* FIX: Singular/plural */}
+                </p>
+              </div>
             </div>
+            <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-full shadow-sm shrink-0 ml-2">
+              <span className="material-symbols-outlined text-sm text-amber-400" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+              <span className="text-sm font-black text-amber-600">{(ev.avgRating || 0).toFixed(1)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
 
             {/* Upcoming Events */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all"

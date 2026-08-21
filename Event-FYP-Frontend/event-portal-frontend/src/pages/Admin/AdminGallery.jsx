@@ -157,15 +157,24 @@ const AdminGallery = () => {
     }
   };
 
-  // Filter media with search
+  // FIX: Search now works on media items (title/description) AND event name
   const filteredMedia = mediaItems.filter((item) => {
+    // Filter by type (Images/Videos/All)
     if (activeFilter === 'Images' && item.media_type !== 'Image') return false;
     if (activeFilter === 'Videos' && item.media_type !== 'Video') return false;
     
+    // Search functionality - search in media title, description, and event name
     if (searchQuery) {
       const event = events.find(e => e._id === selectedEvent);
-      const eventName = event?.title || '';
-      return eventName.toLowerCase().includes(searchQuery.toLowerCase());
+      const eventName = event?.title?.toLowerCase() || '';
+      const searchLower = searchQuery.toLowerCase();
+      
+      // Check if search matches: event name, media title, or media description
+      const matchesEvent = eventName.includes(searchLower);
+      const matchesTitle = item.title?.toLowerCase().includes(searchLower) || false;
+      const matchesDescription = item.description?.toLowerCase().includes(searchLower) || false;
+      
+      return matchesEvent || matchesTitle || matchesDescription;
     }
     
     return true;
@@ -240,16 +249,7 @@ const AdminGallery = () => {
                   ))}
                 </select>
               </div>
-              <div className="relative flex-1 sm:flex-none">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search events..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full sm:w-40 lg:w-48 pl-10 pr-4 py-2 bg-[#f0eded] border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#7cf6ec] transition-all"
-                />
-              </div>
+             
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto">
               <button
@@ -366,7 +366,7 @@ const AdminGallery = () => {
                 </div>
               )}
 
-              {/* Gallery Grid - Responsive */}
+              {/* Gallery Grid - Responsive with FIXED layout */}
               {!selectedEvent ? (
                 <div className="bg-white rounded-2xl p-10 sm:p-20 text-center flex flex-col items-center">
                   <div className="w-16 h-16 sm:w-24 sm:h-24 bg-[#f0eded] rounded-full flex items-center justify-center mb-4 sm:mb-6">
@@ -387,9 +387,13 @@ const AdminGallery = () => {
               ) : filteredMedia.length === 0 ? (
                 <div className="bg-white rounded-2xl p-12 sm:p-16 text-center flex flex-col items-center">
                   <ImageIcon size={36} className="text-[#c9a8e0] sm:size-12 mb-2" />
-                  <p className="text-base sm:text-lg font-bold text-[#1c1b1b] mt-3">No media found</p>
+                  <p className="text-base sm:text-lg font-bold text-[#1c1b1b] mt-3">
+                    {searchQuery ? 'No media matches your search.' : 'No media found'}
+                  </p>
                   <p className="text-xs sm:text-sm text-[#4d434f] mt-1">
-                    {searchQuery ? 'No events match your search.' : 'No photos or videos have been uploaded for this event yet.'}
+                    {searchQuery 
+                      ? `Try searching for "${searchQuery}" in media titles or descriptions.` 
+                      : 'No photos or videos have been uploaded for this event yet.'}
                   </p>
                 </div>
               ) : (
@@ -397,14 +401,19 @@ const AdminGallery = () => {
                   {filteredMedia.map((item) => (
                     <div
                       key={item._id}
-                      className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300"
+                      className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col"
                     >
-                      <div className="aspect-4/3 overflow-hidden relative cursor-pointer" onClick={() => openLightbox(item)}>
+                      {/* FIX: Changed from aspect-4/3 to aspect-square for consistent sizing */}
+                      <div 
+                        className="relative w-full aspect-square overflow-hidden cursor-pointer bg-[#f5f0f7]" 
+                        onClick={() => openLightbox(item)}
+                      >
                         {item.media_type === 'Video' ? (
                           <div className="relative w-full h-full bg-[#1c1b1b] flex items-center justify-center">
                             <video
                               src={`${BASE_URL}${item.media_url}`}
                               className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-500"
+                              muted
                             />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <div className="bg-black/40 rounded-full w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center group-hover:bg-[#8b4fa2]/80 transition">
@@ -415,29 +424,43 @@ const AdminGallery = () => {
                         ) : (
                           <img
                             src={`${BASE_URL}${item.media_url}`}
-                            alt="gallery"
+                            alt={item.title || 'gallery image'}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
                           />
                         )}
                         <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-
-                      {/* Card Footer - Responsive */}
-                      <div className="p-3 sm:p-4 flex items-center justify-between">
-                        <div>
-                          <span className={`text-[8px] sm:text-[10px] uppercase tracking-widest font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full ${
+                        
+                        {/* Media type badge on image */}
+                        <div className="absolute top-2 left-2">
+                          <span className={`text-[8px] sm:text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded-full shadow-md ${
                             item.media_type === 'Video'
-                              ? 'bg-[#1c1b1b]/10 text-[#1c1b1b]'
-                              : 'bg-purple-100 text-[#80409b]'
+                              ? 'bg-black/70 text-white'
+                              : 'bg-purple-600/80 text-white'
                           }`}>
                             {item.media_type}
                           </span>
-                          <p className="text-[10px] sm:text-xs text-[#4d434f] font-semibold mt-1">
-                            {new Date(item.uploaded_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+                      </div>
+
+                      {/* Card Footer - Responsive */}
+                      <div className="p-3 sm:p-4 flex items-center justify-between flex-1">
+                        <div className="min-w-0 flex-1">
+                          {item.title && (
+                            <p className="text-xs sm:text-sm font-bold text-[#1c1b1b] truncate">
+                              {item.title}
+                            </p>
+                          )}
+                          <p className="text-[10px] sm:text-xs text-[#4d434f]">
+                            {new Date(item.uploaded_at).toLocaleDateString('en-US', { 
+                              day: 'numeric', 
+                              month: 'short', 
+                              year: 'numeric' 
+                            })}
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-0.5 sm:gap-1">
+                        <div className="flex items-center gap-0.5 sm:gap-1 ml-2 shrink-0">
                           <button
                             onClick={() => handleDownload(item)}
                             className="p-1.5 sm:p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition"
