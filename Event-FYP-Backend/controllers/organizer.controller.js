@@ -20,14 +20,14 @@ async function registerOrganizer(req, res) {
         });
 
         const Admin = require('../models/Admin');
-        const admin = await Admin.findOne();
+        const admin = await Admin.findOne(); 
         if (admin) {
             await sendNotification(
                 admin._id,
                 'New Organizer Registered 🎉',
                 `${name} (${email}) has registered as an organizer`,
                 'system',
-                organizer._id
+                organizer._id 
             );
         }
 

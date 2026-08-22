@@ -1,37 +1,16 @@
 const mongoose = require('mongoose');
 
 const certificateSchema = new mongoose.Schema({
-    student_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Student',
-        required: true
-    },
-    event_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Event',
-        required: true
-    },
-    organizer_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Organizer',
-        required: true
-    },
-    certificate_type: {
-        type: String,
+    student_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+    event_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true  },
+    organizer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Organizer', required: true },
+    certificate_type: { type: String,
         enum: ['Participation', 'Achievement', 'Excellence', 'Volunteer', 'Winner', 'Technical', 'Non-Technical', 'Workshop', 'Seminar', 'Sports', 'Cultural'],
         default: 'Participation'
     },
-    certificate_number: {
-        type: String,
-        unique: true
-    },
-    certificate_url: {
-        type: String
-    },
-    issued_date: {
-        type: Date,
-        default: Date.now
-    },
+    certificate_number: { type: String,  unique: true },
+    certificate_url: {type: String },
+    issued_date: {type: Date, default: Date.now },
     status: {
         type: String,
         enum: ['Active', 'Revoked'],
@@ -45,7 +24,8 @@ certificateSchema.index(
     { unique: true }
 );
 
-// Auto-generate certificate number (based on highest existing number, not count)
+
+// Auto-generate certificate number 
 // Fix: countDocuments() ki jagah highest number dhoond ke +1 karte hain,
 // taake delete hone ke baad bhi number collide na ho.
 certificateSchema.pre('save', async function() {
@@ -71,7 +51,7 @@ certificateSchema.pre('save', async function() {
                 this.certificate_number = candidate;
                 isUnique = true;
             } else {
-                nextNum++; // rare race-condition case, agla number try karo
+                nextNum++; //
             }
         }
     }

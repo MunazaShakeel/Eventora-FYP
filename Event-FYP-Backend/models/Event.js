@@ -10,6 +10,7 @@ const eventSchema = new mongoose.Schema({
     end_date: { type: Date, required: true },
     end_time: { type: String },   // "HH:MM" format
     organizer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Organizer', required: true },
+    //ek objectid hai ju organizer model ko reference kerta hai
     approved: { type: Boolean, default: false },
     status: { 
         type: String, 

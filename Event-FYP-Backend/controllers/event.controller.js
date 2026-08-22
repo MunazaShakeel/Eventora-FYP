@@ -1,18 +1,10 @@
 
-
-
-
-
-
-
 const Event = require('../models/Event');
 const Registration = require("../models/Registration");
 const Feedback = require("../models/Feedback");
 const Certificate = require("../models/Certificate");
 const Task = require("../models/Task");
 const Admin = require("../models/Admin");
-
-// 🆕 Notification import
 const { sendNotification } = require('../utils/notification');
 
 const buildImageUrl = (req, filename) => {
@@ -40,10 +32,10 @@ exports.createEvent = async (req, res) => {
             status: 'Upcoming'
         });
 
-        // 🆕 Notify all Admins about the new event awaiting approval
+        // Notify all Admins about the new event awaiting approval
         try {
             const admins = await Admin.find().select('_id');
-            for (const admin of admins) {
+            for (const admin of admins)  {
                 await sendNotification(
                     admin._id,
                     'New Event Pending Approval',
@@ -171,7 +163,8 @@ exports.deleteEvent = async (req, res) => {
 
         if (!event) return res.status(404).json({ message: 'Event not found' });
 
-        if (req.user.role === 'Organizer' && event.organizer_id.toString() !== req.user.id) {
+        if (req.user.role === 'Organizer' && event.organizer_id.toString() !== req.user.id)   
+             { 
             return res.status(403).json({ message: 'Not authorized to delete this event' });
         }
 

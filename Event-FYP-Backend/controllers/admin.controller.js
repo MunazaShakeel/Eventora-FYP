@@ -9,9 +9,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 
-// ===============================
-// 🔐 ADMIN LOGIN
-// ===============================
+
+//  ADMIN LOGIN
+
 exports.loginAdmin = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -73,7 +73,7 @@ exports.getDashboard = async (req, res) => {
 // ===============================
 exports.getAllUsers = async (req, res) => {
     try {
-        const students = await Student.find().select('-password');
+        const students = await Student.find().select('-password'); //students ka data le raha hai aur password ko exclude kar raha hai
         const organizers = await Organizer.find().select('-password');
 
         res.json({
@@ -88,7 +88,7 @@ exports.getAllUsers = async (req, res) => {
 
 
 // ===============================
-// 👑 GET ALL ADMINS
+// GET ALL ADMINS
 // ===============================
 exports.getAllAdmins = async (req, res) => {
     try {
@@ -154,7 +154,7 @@ exports.updateAdmin = async (req, res) => {
 
 
 // ===============================
-// ❌ DELETE ADMIN
+// DELETE ADMIN
 // ===============================
 exports.deleteAdmin = async (req, res) => {
     try {

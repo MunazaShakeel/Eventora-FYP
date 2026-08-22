@@ -1,12 +1,12 @@
 const Student = require('../models/Student');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');//bcyrptjs used for hashing passwords and comparing hashed passwords for authentication.
+const jwt = require('jsonwebtoken'); 
 const { sendNotification } = require('../utils/notification');
 
 // ------------------ REGISTER STUDENT ------------------
 exports.registerStudent = async (req, res) => {
     try {
-        const { name, email, phone, grade, department, semester, password } = req.body;
+        const { name, email, phone, grade, department, semester, password } = req.body; // ye data frontend se aa raha hai
 
         // Check if email already exists
         const existingEmail = await Student.findOne({ email });
@@ -14,16 +14,18 @@ exports.registerStudent = async (req, res) => {
             return res.status(400).json({ message: 'Email already registered' });
         }
 
-        // ✅ FIX: Phone check ONLY if phone is provided
-        if (phone && phone.trim()) {
-            const existingPhone = await Student.findOne({ phone });
+        //  Phone check ONLY if phone is provided
+        if (phone && phone.trim()) 
+             {
+            const existingPhone = await Student.findOne({ phone });//check if phone already exists in the database
             if (existingPhone) {
                 return res.status(400).json({ message: 'Phone number already registered' });
             }
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-
+        
+      
         const student = await Student.create({
             name,
             email,
@@ -39,7 +41,7 @@ exports.registerStudent = async (req, res) => {
             student._id,
             'Welcome to Eventora! 🎉',
             `Hello ${name}, your student account has been created successfully. Start exploring events!`,
-            'system',
+            'system', //Notification type
             student._id
         );
 
@@ -57,7 +59,7 @@ exports.loginStudent = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        const student = await Student.findOne({ email });
+        const student = await Student.findOne({ email }); 
         if (!student) {
             return res.status(404).json({ message: 'Student not found' });
         }
@@ -76,6 +78,7 @@ exports.loginStudent = async (req, res) => {
             student._id
         );
 
+        //after login token generate karna hai jo ki user ko milega aur uske sath hi user ka data bhi milega
         const token = jwt.sign(
             { id: student._id, role: 'Student' },
             process.env.JWT_SECRET,
@@ -180,7 +183,8 @@ exports.updateStudent = async (req, res) => {
 
         const updateData = { name, phone, grade, semester, department };
 
-        if (password) {
+        if (password) 
+             {
             updateData.password = await bcrypt.hash(password, 10);
         }
 

@@ -6,7 +6,7 @@ const registrationSchema = new mongoose.Schema({
     registration_date: { type: Date, default: Date.now },
     role: { type: String, enum: ['Student', 'Volunteer'], default: 'Student' },
     attendance_status: { type: String, enum: ['Present', 'Absent', 'Not Marked'], default: 'Not Marked' },
-    qrCode: { type: String }  // ✅ ADD THIS
+    qrCode: { type: String }  
 }, { timestamps: true });
 
 module.exports = mongoose.model('Registration', registrationSchema);

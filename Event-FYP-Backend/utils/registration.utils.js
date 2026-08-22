@@ -1,9 +1,9 @@
 const QRCode = require('qrcode');
 
 /*
------------------------------------
+
 Generate Registration Code
------------------------------------
+
 */
 exports.generateRegistrationCode = (studentId, eventId) => {
   return `REG-${studentId}-${eventId}`;

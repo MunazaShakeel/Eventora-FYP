@@ -2,7 +2,7 @@ const Registration = require('../models/Registration');
 const Event = require('../models/Event');
 const Student = require('../models/Student');
 const { generateRegistrationQR } = require('../utils/registration.utils');
-const { sendNotification } = require('../utils/notification'); // ✅ Notification import
+const { sendNotification } = require('../utils/notification'); 
 
 // ------------------ REGISTER STUDENT / VOLUNTEER ------------------
 exports.registerForEvent = async (req, res) => {
@@ -28,7 +28,7 @@ exports.registerForEvent = async (req, res) => {
         registration.qrCode = qrCode;
         await registration.save();
 
-        // 🆕 Notify Student about successful registration
+        //Notify Student about successful registration
         try {
             await sendNotification(
                 student_id,
@@ -41,7 +41,7 @@ exports.registerForEvent = async (req, res) => {
             console.error('Notification error (registerForEvent):', notifyErr.message);
         }
 
-        // 🆕 Notify Organizer about new registration
+        // Notify Organizer about new registration
         try {
             if (event.organizer_id) {
                 const student = await Student.findById(student_id);
