@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const morgan = require('morgan');
-const cors = require('cors');
+const cors = require('cors');//
 
 const Admin = require('./models/Admin');
 const bcrypt = require('bcryptjs');
@@ -31,15 +31,12 @@ const volunteerDashboardRoutes = require('./routes/volunteerDashboard.routes');
 
 
 
-// 🆕 Import auth middleware
+// Import auth middleware
 const { authMiddleware, allowRoles } = require('./middleware/auth.middleware');
 
 const app = express();
  app.use(cors());
-// app.use(cors({
-//   origin: process.env.CLIENT_URL || 'http://localhost:5173',
-//   credentials: true
-// }));
+
 app.use(express.json());
 app.use(morgan('dev'));
 const path = require('path');
@@ -64,19 +61,10 @@ app.use('/api/volunteer-dashboard', volunteerDashboardRoutes);
 
 
 
-// // Health Check (ADD THIS BEFORE ERROR HANDLER)
-// app.get('/api/health', (req, res) => {
-//   res.json({
-//     status: 'OK',
-//     message: 'Server is running',
-//     timestamp: new Date().toISOString(),
-//     environment: process.env.NODE_ENV || 'development'
-//   });
-// });
 
 
 
-// 🆕 NOTIFICATION ROUTES (Protected with authMiddleware)
+//  NOTIFICATION ROUTES (Protected with authMiddleware)
 app.get('/api/notifications', authMiddleware, async (req, res) => {
     try {
         const result = await notificationUtils.getUserNotifications(req.user.id);
