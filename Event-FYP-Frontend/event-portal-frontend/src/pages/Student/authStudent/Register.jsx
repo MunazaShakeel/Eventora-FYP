@@ -35,7 +35,6 @@ const Register = () => {
   // Name validation state
   const [nameError, setNameError] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
-  
   // Password validation states
   const [passwordErrors, setPasswordErrors] = useState({
     length: false,
@@ -54,7 +53,8 @@ const Register = () => {
 
   // Name validation function
   const validateName = (name) => {
-    if (!name.trim()) {
+    if (!name.trim())//check if the name is empty or only whitespace
+       {
       setNameError("Name is required");
       return false;
     }
@@ -103,7 +103,8 @@ const Register = () => {
       const organizerRes = await axios.get(`${API_URL}/organizers/check-email?email=${email}`);
       const adminRes = await axios.get(`${API_URL}/admins/check-email?email=${email}`);
 
-      if (studentRes.data.exists || organizerRes.data.exists || adminRes.data.exists) {
+      if (studentRes.data.exists || organizerRes.data.exists || adminRes.data.exists)
+        {
         setEmailAvailable(false);
         setEmailError("This email is already registered. Please use a different email or login.");
       } else {
@@ -255,7 +256,7 @@ const Register = () => {
   try {
     setError("");
 
-    // ✅ FIX: Department ko properly set karo
+    //Department ko properly set karo
     let finalDepartment = "";
     
     if (formData.grade === "other") {
@@ -289,8 +290,8 @@ const Register = () => {
       name: formData.name.trim(),
       email: formData.email,
       password: formData.password,
-      department: finalDepartment,  // ✅ Department set karo
-      grade: finalDepartment,       // ✅ Grade bhi set karo
+      department: finalDepartment,  // Department set karo
+      grade: finalDepartment,       //Grade bhi set karo
       semester: formData.semester ? Number(formData.semester) : null,
       phone: formData.phone || ""
     };
@@ -309,6 +310,8 @@ const Register = () => {
     }
   }
 };
+
+
   const getPasswordStrength = () => {
     const validCount = Object.values(passwordErrors).filter(val => val === true).length;
     if (validCount === 5) return { text: "Strong", color: "text-green-600", bg: "bg-green-100" };

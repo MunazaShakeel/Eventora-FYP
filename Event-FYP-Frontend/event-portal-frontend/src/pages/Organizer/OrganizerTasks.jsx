@@ -23,7 +23,7 @@ import VolunteersTable from "../../components/OrganizerComp/Attendance/Volunteer
 const OrganizerTasks = () => {
   const { token } = useAuth();
 
-  // ✅ API URL from env
+  //  API URL from env
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   const [events, setEvents] = useState([]);
@@ -44,7 +44,7 @@ const OrganizerTasks = () => {
     assigned_to: "",
   });
 
-  // ✅ Edit Task modal state
+  // Edit Task modal state
   const [editingTask, setEditingTask] = useState(null);
   const [editFormData, setEditFormData] = useState({
     title: "",
@@ -54,7 +54,7 @@ const OrganizerTasks = () => {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState("");
 
-  // ✅ Delete Confirmation Dialog state
+  // Delete Confirmation Dialog state
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
     taskId: null,
@@ -178,7 +178,7 @@ const OrganizerTasks = () => {
     }
   };
 
-  // ✅ Open delete confirmation dialog
+  //  Open delete confirmation dialog
   const openDeleteDialog = (taskId) => {
     const task = tasks.find((t) => t._id === taskId);
     setDeleteDialog({
@@ -188,7 +188,7 @@ const OrganizerTasks = () => {
     });
   };
 
-  // ✅ Close delete confirmation dialog
+  //  Close delete confirmation dialog
   const closeDeleteDialog = () => {
     setDeleteDialog({
       isOpen: false,
@@ -197,7 +197,7 @@ const OrganizerTasks = () => {
     });
   };
 
-  // ✅ Delete task after confirmation
+  //  Delete task after confirmation
   const confirmDeleteTask = async () => {
     const { taskId } = deleteDialog;
     if (!taskId) return;

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom"; 
 import OrganizerSidebar from "../../components/OrganizerSidebar";
 import { useAuth } from "../../context/AuthContext";
 import { Calendar, Clock, MapPin, Edit2, PlusCircle, Image as ImageIcon, X, AlertCircle, CheckCircle } from "lucide-react";

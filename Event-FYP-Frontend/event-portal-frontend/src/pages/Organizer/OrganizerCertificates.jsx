@@ -43,59 +43,59 @@ const OrganizerCertificates = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ── Check if event is completed ──
-// ── Check if event is completed (DATE + TIME) ──
-const isEventCompleted = (event) => {
-  if (!event) return false;
-  if (!event.approved) return false;
+  // ── Check if event is completed (DATE + TIME) ──
+  const isEventCompleted = (event) => {
+    if (!event) return false;
+    if (!event.approved) return false;
 
-  const now = new Date();
+    const now = new Date();
 
-  let eventEnd = new Date(event.end_date || event.start_date);
-  if (event.end_time) {
-    const [hours, minutes] = event.end_time.split(':').map(Number);
-    eventEnd.setHours(hours || 0, minutes || 0, 0, 0);
-  } else {
-    eventEnd.setHours(23, 59, 59, 999);
-  }
+    let eventEnd = new Date(event.end_date || event.start_date);
+    if (event.end_time) {
+      const [hours, minutes] = event.end_time.split(':').map(Number);
+      eventEnd.setHours(hours || 0, minutes || 0, 0, 0);
+    } else {
+      eventEnd.setHours(23, 59, 59, 999);
+    }
 
-  let eventStart = new Date(event.start_date);
-  if (event.start_time) {
-    const [hours, minutes] = event.start_time.split(':').map(Number);
-    eventStart.setHours(hours || 0, minutes || 0, 0, 0);
-  }
+    let eventStart = new Date(event.start_date);
+    if (event.start_time) {
+      const [hours, minutes] = event.start_time.split(':').map(Number);
+      eventStart.setHours(hours || 0, minutes || 0, 0, 0);
+    }
 
-  if (eventStart > now) return false;
-  return now > eventEnd;
-};
+    if (eventStart > now) return false;
+    return now > eventEnd;
+  };
 
-// ── Get Event Status ──
-const getEventStatus = (event) => {
-  if (!event) return { label: "Unknown", color: "#9ca3af", icon: "help" };
-  if (!event.approved) return { label: "⏳ Pending Approval", color: "#f59e0b", icon: "pending" };
+  // ── Get Event Status ──
+  const getEventStatus = (event) => {
+    if (!event) return { label: "Unknown", color: "#9ca3af", icon: "help" };
+    if (!event.approved) return { label: "⏳ Pending Approval", color: "#f59e0b", icon: "pending" };
 
-  const now = new Date();
+    const now = new Date();
 
-  let eventEnd = new Date(event.end_date || event.start_date);
-  if (event.end_time) {
-    const [hours, minutes] = event.end_time.split(':').map(Number);
-    eventEnd.setHours(hours || 0, minutes || 0, 0, 0);
-  } else {
-    eventEnd.setHours(23, 59, 59, 999);
-  }
+    let eventEnd = new Date(event.end_date || event.start_date);
+    if (event.end_time) {
+      const [hours, minutes] = event.end_time.split(':').map(Number);
+      eventEnd.setHours(hours || 0, minutes || 0, 0, 0);
+    } else {
+      eventEnd.setHours(23, 59, 59, 999);
+    }
 
-  let eventStart = new Date(event.start_date);
-  if (event.start_time) {
-    const [hours, minutes] = event.start_time.split(':').map(Number);
-    eventStart.setHours(hours || 0, minutes || 0, 0, 0);
-  }
+    let eventStart = new Date(event.start_date);
+    if (event.start_time) {
+      const [hours, minutes] = event.start_time.split(':').map(Number);
+      eventStart.setHours(hours || 0, minutes || 0, 0, 0);
+    }
 
-  if (eventStart > now) return { label: "⏳ Upcoming", color: "#3b82f6", icon: "schedule" };
-  if (now >= eventStart && now <= eventEnd) return { label: "⏳ Ongoing", color: "#8b4fa2", icon: "event" };
-  if (now > eventEnd) return { label: "✅ Completed", color: "#10b981", icon: "check_circle" };
+    if (eventStart > now) return { label: "⏳ Upcoming", color: "#3b82f6", icon: "schedule" };
+    if (now >= eventStart && now <= eventEnd) return { label: "⏳ Ongoing", color: "#8b4fa2", icon: "event" };
+    if (now > eventEnd) return { label: "✅ Completed", color: "#10b981", icon: "check_circle" };
 
-  return { label: "Unknown", color: "#9ca3af", icon: "help" };
-};
+    return { label: "Unknown", color: "#9ca3af", icon: "help" };
+  };
+
   // ── Fetch organizer's events ──
   useEffect(() => {
     const fetchEvents = async () => {
@@ -162,8 +162,14 @@ const getEventStatus = (event) => {
     fetchData();
   }, [selectedEvent, token]);
 
+  // ✅ FIX: Sirf current event ke issued certificates filter karein
+  const currentEventIssuedCerts = issuedCerts.filter(
+    (c) => c.event_id?._id === selectedEvent || c.event_id === selectedEvent
+  );
+
+  // ✅ FIX: Sirf current event ke issued student IDs use karein
   const issuedStudentIds = new Set(
-    issuedCerts.map((c) => c.student_id?._id?.toString() || c.student_id?.toString())
+    currentEventIssuedCerts.map((c) => c.student_id?._id?.toString() || c.student_id?.toString())
   );
 
   // ── SELECTED EVENT DATA ──
@@ -171,6 +177,9 @@ const getEventStatus = (event) => {
   const eventCompleted = isEventCompleted(selectedEventData);
   const eventStatus = getEventStatus(selectedEventData);
   const canIssue = eventCompleted;
+
+  // ✅ FIX: Pending count sirf current event ke hisaab se
+  const pendingCount = presentStudents.length - currentEventIssuedCerts.length;
 
   // ── HANDLE ISSUE CERTIFICATE ──
   const handleIssueCertificate = async (student_id) => {
@@ -348,8 +357,6 @@ const getEventStatus = (event) => {
     return new Date(d).toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
   };
 
-  const pendingCount = presentStudents.length - issuedCerts.length;
-
   // ── LOADING ──
   if (!token) {
     return (
@@ -387,7 +394,7 @@ const getEventStatus = (event) => {
             <div className="flex gap-3 flex-wrap">
               {[
                 { icon: "school", label: "Present Students", value: presentStudents.length },
-                { icon: "verified", label: "Issued", value: issuedCerts.length },
+                { icon: "verified", label: "Issued", value: currentEventIssuedCerts.length },
                 { icon: "pending", label: "Pending", value: pendingCount },
                 { icon: "event", label: "My Events", value: events.length },
               ].map((s) => (
@@ -508,7 +515,7 @@ const getEventStatus = (event) => {
                   <div className="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center mx-auto mb-3">
                     <span className="material-symbols-outlined text-teal-600 text-2xl">verified</span>
                   </div>
-                  <p className="text-2xl font-black text-gray-800">{issuedCerts.length}</p>
+                  <p className="text-2xl font-black text-gray-800">{currentEventIssuedCerts.length}</p>
                   <p className="text-xs text-gray-500 font-semibold">Certificates Issued</p>
                 </div>
 
@@ -729,7 +736,7 @@ const getEventStatus = (event) => {
               </div>
 
               {/* ── ISSUED CERTIFICATES SECTION ── */}
-              {issuedCerts.length > 0 && (
+              {currentEventIssuedCerts.length > 0 && (
                 <div className="bg-white rounded-3xl overflow-hidden"
                   style={{ boxShadow: "0 4px 24px rgba(155,89,182,0.09)", border: "1px solid rgba(155,89,182,0.08)" }}>
                   
@@ -738,13 +745,13 @@ const getEventStatus = (event) => {
                       <span className="material-symbols-outlined text-[#8b4fa2]">verified</span>
                       <p className="text-xs font-black text-gray-500 uppercase tracking-wider">Issued Certificates</p>
                       <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-600">
-                        {issuedCerts.length} issued
+                        {currentEventIssuedCerts.length} issued
                       </span>
                     </div>
                   </div>
 
                   <div className="divide-y divide-gray-100">
-                    {issuedCerts.map((cert) => (
+                    {currentEventIssuedCerts.map((cert) => (
                       <div key={cert._id} className="p-5 hover:bg-purple-50/30 transition-colors group">
                         <div className="flex items-center justify-between gap-4 flex-wrap">
                           <div className="flex items-center gap-4 flex-1 min-w-0">

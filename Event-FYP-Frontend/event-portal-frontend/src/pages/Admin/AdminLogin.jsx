@@ -2,11 +2,11 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
-import { useAuth } from "../../context/AuthContext";  // ✅ ADD
+import { useAuth } from "../../context/AuthContext"; 
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();  // ✅ ADD
+  const { login } = useAuth();  
 
   const [formData, setFormData] = useState({
     email: "",
@@ -14,7 +14,7 @@ const AdminLogin = () => {
   });
 
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // ✅ ADD
+  const [showPassword, setShowPassword] = useState(false); // 
 
   const handleChange = (e) => {
     setFormData({

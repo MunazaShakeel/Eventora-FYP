@@ -42,7 +42,7 @@ const isEventUpcoming = (event) => {
   const formatTimeWithAMPM = (timeStr) => {
     if (!timeStr) return "TBA";
     const [hours, minutes] = timeStr.split(':');
-    let hour = parseInt(hours);
+    let hour = parseInt(hours);//
     const minute = minutes || '00';
     const ampm = hour >= 12 ? 'PM' : 'AM';
     hour = hour % 12;

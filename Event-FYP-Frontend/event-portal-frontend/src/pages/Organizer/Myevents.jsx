@@ -37,7 +37,7 @@ const MyEvents = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState("grid"); // grid, list
   
-  // ✅ State for custom delete confirmation modal
+  //  State for custom delete confirmation modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [eventToDelete, setEventToDelete] = useState(null);
 

@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
 const Navbar = () => {
   const [loginOpen, setLoginOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileLoginOpen, setMobileLoginOpen] = useState(false);
   const [mobileRegisterOpen, setMobileRegisterOpen] = useState(false);
-  const navigate = useNavigate();
+  const navigate = useNavigate();//useNavigate hook to programmatically navigate to different routes
 
   // Refs for dropdowns
   const loginDropdownRef = useRef(null);

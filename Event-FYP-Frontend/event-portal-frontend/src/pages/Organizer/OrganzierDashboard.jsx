@@ -86,7 +86,7 @@ const QuickActionButton = ({ action, onClick, index }) => (
   </button>
 );
 
-// ── NOTIFICATION BELL COMPONENT ── (FIXED WITH DELETE BUTTON)
+// ─ NOTIFICATION BELL COMPONENT
 const NotificationBell = ({ 
   notifications, 
   unreadCount, 
@@ -193,7 +193,7 @@ const NotificationBell = ({
                     <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">{n.message}</p>
                     <p className="text-[10px] text-gray-400 mt-1">{formatTime(n.time)}</p>
                   </div>
-                  {/* ✅ CROSS BUTTON - DELETE NOTIFICATION */}
+                  {/* CROSS BUTTON - DELETE NOTIFICATION */}
                   <button 
                     onClick={(e) => { 
                       e.stopPropagation(); 
@@ -540,7 +540,7 @@ const markAllAsRead = async () => {
     { label: "Create Event", icon: "add_circle", path: "/organizer/create-event", color: "#8b4fa2", bg: "#f5eefa" },
     { label: "My Events", icon: "calendar_month", path: "/organizer/my-events", color: "#4ECDC4", bg: "#edfafa" },
     { label: "Tasks", icon: "task_alt", path: "/organizer/tasks", color: "#f59e0b", bg: "#fffbeb" },
-    { label: "Volunteers", icon: "volunteer_activism", path: "/organizer/volunteers", color: "#FF6B6B", bg: "#fff1f1" },
+    { label: "Volunteers", icon: "volunteer_activism", path: "/organizer/tasks", color: "#FF6B6B", bg: "#fff1f1" },
     { label: "Attendance", icon: "fact_check", path: "/organizer/my-events", color: "#10b981", bg: "#ecfdf5" },
     { label: "Scan QR", icon: "qr_code_scanner", path: "/organizer/scan-attendance", color: "#6366f1", bg: "#eef2ff" },
     { label: "Gallery", icon: "photo_library", path: "/organizer/gallery", color: "#10b981", bg: "#ecfdf5" },
@@ -610,7 +610,7 @@ const markAllAsRead = async () => {
               </div>
 
               <div className="flex items-center gap-4">
-                {/* 🔔 NOTIFICATION BELL */}
+                {/* NOTIFICATION BELL */}
                 <NotificationBell
                   notifications={notifications}
                   unreadCount={unreadCount}

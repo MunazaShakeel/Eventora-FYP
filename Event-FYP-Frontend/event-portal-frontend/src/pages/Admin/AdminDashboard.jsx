@@ -678,7 +678,7 @@ const markAllAsRead = async () => {
                   className="shadow-[0_4px_15px_rgba(139,79,162,0.25)] hover:shadow-[0_4px_20px_rgba(139,79,162,0.4)]"
                 />
 
-                {/* 🔔 NOTIFICATION BELL - Direct Dashboard Mein */}
+                {/*NOTIFICATION BELL */}
                 <NotificationBell
                   notifications={notifications}
                   unreadCount={unreadCount}

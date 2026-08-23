@@ -7,9 +7,9 @@ import { useAuth } from "../../context/AuthContext";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-/* ─────────────────────────────────────────
+/* 
    RESULT CONFIG
-───────────────────────────────────────── */
+*/
 const RESULT_CONFIG = {
   success: {
     gradient: "linear-gradient(135deg,#4ECDC4,#2bb5ac)",
@@ -68,7 +68,7 @@ const ScanAttendance = () => {
       }
     };
     fetchEvents();
-  }, [token]);
+  }, [token]); 
 
   /* cleanup on unmount */
   useEffect(() => {
@@ -86,7 +86,6 @@ const ScanAttendance = () => {
     }
     setCameraError("");
     setResult(null);
-
     try {
       if (html5QrRef.current) {
         try { await html5QrRef.current.stop(); await html5QrRef.current.clear(); } catch (_) {}
