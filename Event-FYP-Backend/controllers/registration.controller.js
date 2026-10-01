@@ -121,7 +121,7 @@ exports.cancelRegistration = async (req, res) => {
 // ------------------ MARK ATTENDANCE BY QR ------------------
 exports.markAttendanceByQR = async (req, res) => {
     try {
-        const { qrData } = req.body;
+        const { qrData, event_id } = req.body;
         const userRole = req.user.role;
 
         if (!['Admin', 'Organizer'].includes(userRole))
@@ -130,8 +130,10 @@ exports.markAttendanceByQR = async (req, res) => {
         if (!qrData || !qrData.startsWith('REGISTRATION:'))
             return res.status(400).json({ message: 'Invalid QR code format. QR must start with REGISTRATION:' });
 
+        if (!event_id)
+            return res.status(400).json({ message: 'No event selected. Please select an event first.' });
+
         const registrationId = qrData.split(':')[1];
-        console.log('Looking for registration ID:', registrationId);
 
         const registration = await Registration.findById(registrationId)
             .populate({ path: 'student_id', select: 'name email studentId phone' })
@@ -140,14 +142,35 @@ exports.markAttendanceByQR = async (req, res) => {
         if (!registration)
             return res.status(404).json({ message: 'Registration not found.' });
 
+        // ✅ Check the QR's own event matches the selected event FIRST
+        if (registration.event_id._id.toString() !== event_id)
+            return res.status(400).json({
+                message: `This QR code belongs to "${registration.event_id.title}", not the selected event.`,
+                registration: {
+                    _id: registration._id,
+                    student_id: registration.student_id,
+                    event_id: registration.event_id,
+                    attendance_status: registration.attendance_status,
+                    attendance_time: registration.attendance_time
+                }
+            });
+
         if (registration.attendance_status === 'Present')
-            return res.status(400).json({ message: 'Attendance already marked for this student' });
+            return res.status(400).json({
+                message: 'Attendance already marked for this student',
+                registration: {
+                    _id: registration._id,
+                    student_id: registration.student_id,
+                    event_id: registration.event_id,
+                    attendance_status: registration.attendance_status,
+                    attendance_time: registration.attendance_time
+                }
+            });
 
         registration.attendance_status = 'Present';
         registration.attendance_time = new Date();
         await registration.save();
 
-        // 🆕 Notify Student about attendance marked
         try {
             await sendNotification(
                 registration.student_id._id,
@@ -177,7 +200,6 @@ exports.markAttendanceByQR = async (req, res) => {
         res.status(500).json({ message: 'Server error: ' + error.message });
     }
 };
-
 // ------------------ GET EVENT ATTENDANCE ------------------
 exports.getEventAttendance = async (req, res) => {
     try {

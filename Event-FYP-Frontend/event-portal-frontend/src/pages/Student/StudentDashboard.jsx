@@ -746,7 +746,7 @@ const StudentDashboard = () => {
               </div>
 
               <div className="flex items-center gap-4">
-                {/* 🔔 NOTIFICATION BELL */}
+                {/* NOTIFICATION BELL */}
                 <NotificationBell
                   notifications={notifications}
                   unreadCount={unreadCount}
